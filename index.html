@@ -64,6 +64,9 @@ body.gl #c, body.gl .aurora, body.gl .vignette, body.gl .grain, body.gl .crt { d
 .combo b { display: block; font-size: 21px; font-weight: 800; line-height: .9; letter-spacing: .03em; color: hsl(var(--h3), 100%, 72%); text-shadow: 0 0 18px hsla(var(--h3), 100%, 55%, .9); }
 .combo .bar { display: block; width: clamp(64px, 14vw, 112px); height: 3px; border-radius: 3px; background: rgba(255, 255, 255, .12); overflow: hidden; }
 .combo .bar i { display: block; width: 100%; height: 100%; border-radius: inherit; transform-origin: 0 50%; background: linear-gradient(90deg, hsl(var(--h3), 100%, 60%), #fff); }
+body.fever .stat b.od { filter: drop-shadow(1.5px 0 0 rgba(255, 0, 60, .5)) drop-shadow(-1.5px 0 0 rgba(0, 229, 255, .5)) drop-shadow(0 0 16px hsla(var(--h1), 100%, 60%, .8)); }
+body.fever .combo b { text-shadow: 1.5px 0 0 rgba(255, 0, 60, .5), -1.5px 0 0 rgba(0, 229, 255, .5), 0 0 22px hsla(var(--h3), 100%, 60%, 1); }
+body.fever .aurora i { animation-duration: 17s; }
 
 .icon { pointer-events: auto; width: 36px; height: 36px; border-radius: 50%; display: grid; place-items: center; border: 1px solid rgba(255, 255, 255, .14); background: rgba(255, 255, 255, .05); color: rgba(255, 255, 255, .75); transition: transform .2s ease, background .2s ease, color .2s ease, opacity .45s ease; }
 .icon:hover { background: rgba(255, 255, 255, .13); color: #fff; transform: scale(1.1); }
@@ -585,7 +588,7 @@ const fx = (() => {
     comp: `precision highp float; varying vec2 v; ` + HASH + `
       uniform sampler2D scene, glow, bloom, streak, neb, rays;
       uniform vec2 res, head; uniform vec4 waves[4]; uniform vec3 flash;
-      uniform float time, boost, glitch, crt, letter, hurt, calm, bloomK, flareK, rayK;
+      uniform float time, beat, fever, boost, glitch, crt, letter, hurt, calm, bloomK, flareK, rayK;
       uniform vec4 imp;
       void main() {
         vec2 asp = vec2(res.x / res.y, 1.0), uv = v;
@@ -599,9 +602,12 @@ const fx = (() => {
         float band = floor(uv.y * 64.0), tk = floor(time * 24.0);
         uv.x += (hash(vec2(band, tk)) - 0.5) * step(0.86, hash(vec2(band * 1.7, tk + 3.0))) * glitch * 0.09;
         vec2 cc = uv - 0.5;
-        float ca = (0.0006 + dot(cc, cc) * 0.005 + glitch * 0.012 + boost * 0.003) * (1.0 - 0.7 * calm);
+        float fev = fever * (1.0 - 0.75 * calm);
+        float ca = (0.0006 + dot(cc, cc) * 0.005 + glitch * 0.012 + boost * 0.003 + fev * 0.003 * (0.5 + 0.5 * sin(time * 8.0))) * (1.0 - 0.7 * calm);
+        float sw = fev * time * 1.9;   // the red/blue split slowly swirls when the run overheats
+        vec2 cq = mat2(cos(sw), -sin(sw), sin(sw), cos(sw)) * cc;
         vec4 s = texture2D(scene, uv);
-        vec3 col = vec3(texture2D(scene, uv + cc * ca * 3.0).r, s.g, texture2D(scene, uv - cc * ca * 3.0).b);
+        vec3 col = vec3(texture2D(scene, uv + cq * ca * 3.0).r, s.g, texture2D(scene, uv - cq * ca * 3.0).b);
         if (boost > 0.01) {   // overdrive: everything streaks away from the head
           vec2 dir = (uv - head) * 0.032 * boost * smoothstep(0.04, 0.45, length((uv - head) * asp)); vec3 acc = col;
           for (int i = 1; i <= 7; i++) acc += texture2D(scene, uv - dir * float(i) / 7.0).rgb;
@@ -620,16 +626,19 @@ const fx = (() => {
           col += pow(abs(sin(a * 21.0 + 0.6)), 16.0) * smoothstep(0.06, 0.24, r) * (1.0 - smoothstep(0.3, 1.0, r)) * imp.z;
           col = mix(col, vec3(dot(col, vec3(0.299, 0.587, 0.114))), -0.35 * imp.z);   // and a punch of extra colour
         }
+        float a2 = atan(cc.y, cc.x) + time * 1.6;
+        col += (0.5 + 0.5 * cos(vec3(0.0, 2.094, 4.188) + a2 * 2.0 + time * 2.2)) * fev * 0.12 * smoothstep(0.15, 0.9, length(cc * asp));   // rainbow sheen
         float vig = smoothstep(0.4, 1.25, length(cc * asp * 1.2));
-        col *= 1.0 - 0.5 * vig;
+        col *= 1.0 - vig * (0.5 - fev * 0.3 * beat);   // fever breathes the vignette open on the kick
+        col += fev * beat * 0.09 * (1.0 - vig) * vec3(0.55, 0.8, 1.0);
         col += vec3(0.6, 0.0, 0.12) * hurt * vig;
         col = col / (1.0 + max(col - 0.82, 0.0) * 0.9);                      // soft shoulder instead of a hard clip
-        col = mix(vec3(dot(col, vec3(0.299, 0.587, 0.114))), col, 1.08);
+        col = mix(vec3(dot(col, vec3(0.299, 0.587, 0.114))), col, 1.08 + fev * 0.35);
         if (crt > 0.5) {
           col *= 0.84 + 0.16 * sin(v.y * res.y * 1.5708);
           vec2 e = smoothstep(0.0, 0.012, tube) * smoothstep(0.0, 0.012, 1.0 - tube); col *= e.x * e.y;
         }
-        col += (hash(v * res + fract(time) * 97.0) - 0.5) * 0.03 * (1.0 - 0.6 * calm);   // film grain, also dithers the gradients
+        col += (hash(v * res + fract(time) * 97.0) - 0.5) * 0.03 * (1.0 + fev * 1.1) * (1.0 - 0.6 * calm);   // film grain, also dithers the gradients
         float lb = letter * 0.085; col *= smoothstep(lb, lb + 0.003, v.y) * smoothstep(lb, lb + 0.003, 1.0 - v.y);
         gl_FragColor = vec4(col, 1.0); }`,
   };
@@ -837,7 +846,7 @@ const fx = (() => {
     pass(progs.comp, null, [['scene', sceneM.t], ['glow', glowT], ['bloom', levels[0].t], ['streak', strA.t], ['neb', nebT.t], ['rays', raysT.t]], (u) => {
       gl.uniform2f(u.res, cv.width, cv.height); gl.uniform2fv(u.head, o.head); gl.uniform4fv(u.waves, waveBuf); gl.uniform3fv(u.flash, o.flash);
       gl.uniform4fv(u.imp, o.imp);
-      for (const k of ['time', 'boost', 'glitch', 'crt', 'letter', 'hurt', 'calm', 'bloomK', 'flareK', 'rayK']) gl.uniform1f(u[k], o[k]);
+      for (const k of ['time', 'beat', 'fever', 'boost', 'glitch', 'crt', 'letter', 'hurt', 'calm', 'bloomK', 'flareK', 'rayK']) gl.uniform1f(u[k], o[k]);
     });
   };
   return api;
@@ -866,6 +875,7 @@ let boostHeld = false, boostFx = 0, crtBuf = null, letter = 0;
 const waves = [];   // refraction rings for the gpu pass, in css px
 let realTime = 0, timeScale = 1, freeze = 0, beat = 0;
 let shake = 0, shX = 0, shY = 0, punch = 0, flash = 0, flashRGB = '255,255,255', glitch = 0, hurt = 0;
+let fever = 0;   // combo overload: how hot the frame is allowed to run right now
 let imp = 0, impX = 0, impY = 0;   // impact frame: spokes of light thrown from the last big eat
 let hue = HUE0, hueTarget = HUE0, cssHue = -1e9, cssTheme = null;
 let overAt = -10, demoAt = 0, shownScore = 0, comboOn = false;
@@ -1084,11 +1094,14 @@ function resolveEat(g) {
   if (!it) return;
   const gold = !bonus && it.golden, big = bonus || gold;
   const x = cellX(it.x), y = cellY(it.y), h = bonus ? novaHue(g) : gold ? GOLD : foodHue();
+  const cmb = g.combo;   // combo carried over from the last eat, used to scale this one's dressing
   g.hunger = 0; g.bulges.push({ s: 0, a: big ? 0.4 : 0.3 });
-  burst(x, y, h, big ? 44 : 20, big ? 1.5 : 1, big ? 72 : 62);
-  ring(x, y, h, cell * (big ? 3.6 : 2.1), big ? 0.7 : 0.5, big ? 4 : 2.6);
+  burst(x, y, h, (big ? 44 : 20) + (big ? 0 : min(cmb, 14) * 3), big ? 1.5 : 1, big ? 72 : 62);
+  ring(x, y, h, cell * (big ? 3.6 : 2.1 + min(cmb, 12) * 0.15), big ? 0.7 : 0.5, big ? 4 : 2.6);
   ripple(x, y, big ? 1 : 0.6, big ? 16 : 13, big ? 1.2 : 0.8);
+  if (!big && cmb >= 4) ripple(x, y, 0.7, 14, 1);
   if (big) stars(x, y, h, bonus ? 16 : 9);
+  else if (cmb >= 5) stars(x, y, h, 5);
   if (bonus) { g.bonus = null; g.novas++; }
   else {
     g.grow++; g.eaten++; g.food = null; g.food = nextFood(g);
@@ -1106,13 +1119,13 @@ function resolveEat(g) {
     g.score += pts; g.energy = bonus ? 100 : min(100, g.energy + 20);
     const sub = bonus ? 'NOVA!' : gold ? 'GOLD ×5' : [g.combo > 1 ? '×' + g.combo : '', mult > 1 ? 'OVERDRIVE ×2' : ''].filter(Boolean).join(' · ');
     popup(x, y - cell * 0.5, '+' + pts, h, cell * (big ? 0.95 : 0.6 + min(g.combo, 6) * 0.045), sub);
-    shake = max(shake, big ? 8 : 2.2 + min(g.combo, 9) * 0.45); punch = max(punch, big ? 0.05 : 0.011);
-    if (big) { imp = 1; impX = x; impY = y; }   // spokes of light, punched into the gpu pass
+    shake = max(shake, big ? 8 : 2.2 + min(g.combo, 12) * 0.55); punch = max(punch, big ? 0.05 : 0.011 + min(g.combo, 10) * 0.0015);
+    if (big || cmb >= 7) { imp = big ? 1 : 0.7; impX = x; impY = y; }   // spokes of light, punched into the gpu pass
     freeze = max(freeze, big ? 0.09 : 0.06);   // hitstop
     const pan = clamp((x - W / 2) / (W / 2), -1, 1) * 0.7;
     if (bonus) { glitch = max(glitch, 0.45); flash = 0.22; flashRGB = '255,230,170'; audio.bonus(pan); }
     else if (gold) { glitch = max(glitch, 0.3); flash = 0.16; flashRGB = '255,214,120'; audio.golden(g.combo, pan); }
-    else { audio.eat(g.combo, pan); if (opts.crt) glitch = max(glitch, 0.12); }
+    else { audio.eat(g.combo, pan); glitch = max(glitch, 0.12 + min(g.combo, 10) * 0.008); flash = max(flash, fever * 0.05); }   // every bite tears the frame a little harder as the combo climbs
     if (g.combo % 5 === 0) milestone(g.combo);
     else if (!g.record && best > 0 && g.score > best) { g.record = true; banner('NEW BEST!', 'KEEP GOING'); audio.best(); }
     audio.heat(g.combo); bump(scoreEl); if (g.combo > 1) bump(comboXEl);
@@ -1492,7 +1505,7 @@ function drawDust(c, t) {
 // grid dots light up around the head and the food, and ride every shockwave
 function drawDots(c, g, gp) {
   const hx = bx + (wrapC(PX[0], g.cols) + 0.5) * cell, hy = by + (wrapC(PY[0], g.rows) + 0.5) * cell, live = g.alive;
-  const sp2 = 2 * (cell * 2.3) ** 2, r0 = max(0.8, cell * 0.034), pulse = beat * (mode === 'playing' ? 0.09 : 0.05);
+  const sp2 = 2 * (cell * 2.3) ** 2, r0 = max(0.8, cell * 0.034), pulse = beat * (mode === 'playing' ? 0.09 : 0.05) + fever * 0.05 * beat;
   const f = g.food, fx = f ? cellX(f.x) : 0, fy = f ? cellY(f.y) : 0, fp = 0.22 + 0.1 * sin(g.time * 5);
   c.fillStyle = hsla(hue + 24, 95, 80, 1);
   for (let j = 0; j < g.rows; j++) for (let i = 0; i < g.cols; i++) {
@@ -1523,15 +1536,15 @@ function drawLights(c, g) {
   c.save();
   rr(c, bx - cell * PAD, by - cell * PAD, bw + cell * PAD * 2, bh + cell * PAD * 2, cell * 0.5); c.clip();
   c.globalCompositeOperation = 'lighter';
-  if (g.alive) light(c, bx + (wrapC(PX[0], g.cols) + 0.5) * cell, by + (wrapC(PY[0], g.rows) + 0.5) * cell, cell * 4.6, bodyHue(0) + 10, 0.2 + 0.12 * boostFx);
-  if (g.food) light(c, cellX(g.food.x), cellY(g.food.y), cell * (2.7 + 0.25 * beat), g.food.golden ? GOLD : foodHue(), g.food.golden ? 0.28 : 0.2);
+  if (g.alive) light(c, bx + (wrapC(PX[0], g.cols) + 0.5) * cell, by + (wrapC(PY[0], g.rows) + 0.5) * cell, cell * (4.6 + 1.2 * fever * beat), bodyHue(0) + 10, 0.2 + 0.12 * boostFx + 0.15 * fever * beat);
+  if (g.food) light(c, cellX(g.food.x), cellY(g.food.y), cell * (2.7 + 0.25 * beat + 0.5 * fever * beat), g.food.golden ? GOLD : foodHue(), g.food.golden ? 0.28 : 0.2);
   if (g.bonus) light(c, cellX(g.bonus.x), cellY(g.bonus.y), cell * 3.2, novaHue(g), 0.22);
   for (const a of afterglow) light(c, cellX(a.x), cellY(a.y), cell * 0.95, a.h, 0.15 * (a.life / 0.5));   // the board keeps a glow where the tail just was
   c.restore();
 }
 
 function drawFrame(c, gp) {
-  const p = cell * PAD, h = turnTo(turnTo(hue, 330, boostFx * 0.85, 360), 350, hurt, 360), a = min(1, 0.5 + 0.28 * beat + 0.4 * hurt + 0.35 * boostFx);
+  const p = cell * PAD, h = turnTo(turnTo(hue, 330, boostFx * 0.85, 360), 350, hurt, 360), a = min(1, 0.5 + 0.28 * beat + 0.4 * hurt + 0.35 * boostFx + 0.3 * fever * beat);
   rr(c, bx - p, by - p, bw + p * 2, bh + p * 2, cell * 0.5);
   c.strokeStyle = hsla(h, 100, gp ? 58 : 74, gp ? a * 0.8 : a); c.lineWidth = (gp ? 4 : 1.5) + boostFx;
   if (opts.portal) { c.setLineDash([cell * 0.55, cell * 0.3]); c.lineDashOffset = -realTime * cell * 1.4; }   // portal walls: open, marching
@@ -1561,7 +1574,7 @@ function drawFood(c, g, gp) {
   const f = g.food;
   if (!f) return;
   const gold = f.golden, x = cellX(f.x), y = cellY(f.y), h = gold ? GOLD : foodHue();
-  const r = cell * (gold ? 0.33 : 0.3) * outBack(clamp((g.time - f.born) / 0.35, 0, 1)) * (1 + 0.07 * sin(g.time * (gold ? 9 : 5.2)) + 0.1 * beat);
+  const r = cell * (gold ? 0.33 : 0.3) * outBack(clamp((g.time - f.born) / 0.35, 0, 1)) * (1 + 0.07 * sin(g.time * (gold ? 9 : 5.2)) + 0.1 * beat + 0.12 * fever * beat);
   if (r <= 0.01) return;
   if (gp) { c.fillStyle = hsla(h, 100, 60, 1); c.beginPath(); c.arc(x, y, r * (gold ? 1.5 : 1.15), 0, TAU); c.fill(); return; }
   if (gold) {   // golden: an angry pulsing ring and three sparks in orbit
@@ -1778,7 +1791,8 @@ function addGlow(a) {
 function post() {
   const c = ctx, cw = canvas.width, ch = canvas.height;
   c.setTransform(1, 0, 0, 1, 0, 0);
-  if (glitch > 0.02 && !calm) {
+  const gg = max(glitch, (fever - 0.4) * 1.1);   // at fever the rgb ghosts never fully leave
+  if (gg > 0.02 && !calm) {
     if (!ghostR) { ghostR = mkCanvas(ceil(cw / 2), ceil(ch / 2)); ghostB = mkCanvas(ghostR.w, ghostR.h); }
     for (const [b, tint] of [[ghostR, '#ff003c'], [ghostB, '#00e5ff']]) {
       const x = b.x;
@@ -1787,13 +1801,13 @@ function post() {
       x.globalCompositeOperation = 'multiply'; x.fillStyle = tint; x.fillRect(0, 0, b.w, b.h);
       x.globalCompositeOperation = 'destination-in'; x.drawImage(canvas, 0, 0, b.w, b.h);
     }
-    const d = glitch * 14 * dpr;
-    c.globalCompositeOperation = 'lighter'; c.globalAlpha = min(1, glitch * 1.3);
+    const d = gg * 14 * dpr;
+    c.globalCompositeOperation = 'lighter'; c.globalAlpha = min(1, gg * 1.3);
     c.drawImage(ghostR.c, -d, 0, cw, ch); c.drawImage(ghostB.c, d, 0, cw, ch);
     c.globalCompositeOperation = 'source-over'; c.globalAlpha = 1;
-    for (let i = (glitch * 5) | 0; i > 0; i--) {
+    for (let i = (gg * 5) | 0; i > 0; i--) {
       const y = (Math.random() * ch) | 0, h = max(2, (rnd(0.01, 0.06) * ch) | 0);
-      c.drawImage(canvas, 0, y, cw, h, rnd(-1, 1) * glitch * 40 * dpr, y, cw, h);
+      c.drawImage(canvas, 0, y, cw, h, rnd(-1, 1) * gg * 40 * dpr, y, cw, h);
     }
   }
   if (flash > 0.01) {
@@ -1834,7 +1848,7 @@ function render() {
   gc.clearRect(0, 0, g0.w, g0.h);
   camera(gc, g0.w / W, g0.h / H);
   drawDots(gc, g, true); drawFrame(gc, true); drawScene(gc, g, true);
-  const heat = (P && mode === 'playing' ? min(P.combo - 1, 11) * 0.02 : 0) + beat * 0.03 + boostFx * 0.12;
+  const heat = (P && mode === 'playing' ? min(P.combo - 1, 11) * 0.02 : 0) + beat * 0.03 + boostFx * 0.12 + fever * 0.1;
   if (fx.ok) {
     camera(c, dpr, dpr);
     drawScene(c, g, false);
@@ -1862,15 +1876,15 @@ function finish(g, heat) {
   if (g.food) put(cellX(g.food.x), cellY(g.food.y), g.food.golden ? 1 : 0.7);
   put(hx, hy, 0.5);
   fx.draw({
-    scene: canvas, glow: glow[0].c, time: realTime, beat, boost: boostFx, glitch: calm ? glitch * 0.3 : glitch, crt: opts.crt ? 1 : 0,
-    letter, hurt, calm: calm ? 1 : 0, bloomK: 1.05 + heat * 2.6, flareK: 0.32 + heat * 1.4 + boostFx * 0.35,
+    scene: canvas, glow: glow[0].c, time: realTime, beat, fever, boost: boostFx + fever * 0.3, glitch: calm ? glitch * 0.3 : glitch, crt: opts.crt ? 1 : 0,
+    letter, hurt, calm: calm ? 1 : 0, bloomK: 1.05 + heat * 2.6 + fever * 2.2, flareK: 0.32 + heat * 1.4 + boostFx * 0.35 + fever * 1.1,
     head: [hx / W, 1 - hy / H], waves: ws, flash: f,
     hues: [hue, pal ? pal[1] : hue + 80, pal ? th.food : hue + FOOD_SHIFT],
     snake: fx.snakeOk ? snakeGeo(g) : null,
     cam: [z, z, (bx + bw / 2) * (1 - z) + shX + camX, (by + bh / 2) * (1 - z) + shY + camY],
-    res: [W, H], aa: 1.3 / dpr, snakeHeat: min(1, heat * 3), snakeGlow: 1.1,
+    res: [W, H], aa: 1.3 / dpr, snakeHeat: min(1, heat * 3 + fever * 0.35), snakeGlow: 1.1 + fever * 0.9,
     clip: opts.portal ? [bx, by, bw, bh] : null,
-    rays: lights, rayK: (0.5 + heat * 2.4 + boostFx * 0.5) * (calm ? 0.3 : 1),
+    rays: lights, rayK: (0.5 + heat * 2.4 + boostFx * 0.5 + fever * 1.6) * (calm ? 0.3 : 1),
     imp: [impX / W, 1 - impY / H, imp, 0],
   });
 }
@@ -1913,6 +1927,7 @@ function updateHud(dt) {
   const on = !!g && (mode === 'playing' || mode === 'paused') && g.comboT > 0;
   if (on !== comboOn) { comboOn = on; comboEl.classList.toggle('on', on); }
   if (on) { setText(comboXEl, '×' + g.combo); comboBarEl.style.transform = `scaleX(${clamp(g.comboT / g.comboWin, 0, 1).toFixed(3)})`; }
+  document.body.classList.toggle('fever', !!g && mode === 'playing' && g.combo >= 6);
   if (mode === 'over' && g) odo(finalEl, round(g.score * outCubic(clamp((realTime - overAt) / 0.9, 0, 1))));
   const e = clamp(g && mode !== 'menu' ? g.energy / 100 : 1, 0, 1).toFixed(3);
   if (energyEl._e !== e) { energyEl._e = e; energyEl.style.transform = `scaleX(${e})`; if (deckH) boostBtn.style.setProperty('--e', e); }
@@ -2116,14 +2131,21 @@ function tick(dt) {
     if (!G.alive) dissolveFx(G);
   }
   const th = opts.theme;
+  // fever: the overload level, driven by the combo and overdrive; the beat rides it up and down
+  if (mode !== 'paused') {
+    const ft = min(1, (P && mode === 'playing' ? max(0, P.combo - 1) / 7 : 0) * 0.9 + boostFx * 0.3) * (calm ? 0.35 : 1);
+    fever += (ft - fever) * min(1, dt * 5);
+    if (!calm) { shake = max(shake, fever * beat * 1.1); punch = max(punch, fever * beat * 0.004); }
+  }
   if (th.body) hue = turnTo(hue, th.body[0], 1 - exp(-dt * 5), 360);
   else if (th.id === 'rainbow') hue = wrap360(realTime * 36);
   else hue = turnTo(hue, hueTarget, 1 - exp(-dt * 2.5), 360);
+  if (!th.body && !calm) hue = wrap360(hue + dt * 150 * fever);   // themes without a pinned hue spin with the combo
   boostFx += ((G.boosting ? 1 : 0) - boostFx) * min(1, dt * 8);
   letter += ((mode === 'dying' ? 1 : 0) - letter) * min(1, dt * (mode === 'dying' ? 7 : 3));
   if (PN && !calm) {
     const hx = bx + (wrapC(PX[0], G.cols) + 0.5) * cell, hy = by + (wrapC(PY[0], G.rows) + 0.5) * cell, e = 1 - exp(-dt * 2.2);
-    const zoom = mode === 'playing' ? min(P.combo - 1, 10) * 0.0025 + boostFx * 0.012 : 0;
+    const zoom = mode === 'playing' ? min(P.combo - 1, 10) * 0.0025 + boostFx * 0.012 + fever * 0.01 * beat : 0;
     camX += ((bx + bw / 2 - hx) * 0.012 - camX) * e; camY += ((by + bh / 2 - hy) * 0.012 - camY) * e; camZ += (zoom - camZ) * (1 - exp(-dt * 3));
   }
   updateHud(dt); syncCss();

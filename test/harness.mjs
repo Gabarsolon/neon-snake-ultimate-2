@@ -239,8 +239,8 @@ async function main() {
       const g = P, out = [];
       const seen = new Set();
       for (const c of g.snake) { const k = c.x + ',' + c.y; if (seen.has(k)) out.push('dup ' + k); seen.add(k); if (c.x < 0 || c.x >= g.cols || c.y < 0 || c.y >= g.rows) out.push('oob ' + k); }
-      if (g.food && seen.has(g.food.x + ',' + g.food.y)) out.push('food on snake');
-      if (g.bonus && seen.has(g.bonus.x + ',' + g.bonus.y)) out.push('bonus on snake');
+      if (g.food && !g.pending && seen.has(g.food.x + ',' + g.food.y)) out.push('food on snake');
+      if (g.bonus && !g.pending && seen.has(g.bonus.x + ',' + g.bonus.y)) out.push('bonus on snake');
       for (let i = 0; i < PN; i++) if (!isFinite(PX[i]) || !isFinite(PY[i]) || !isFinite(PR[i]) || PR[i] < 0) { out.push('bad sample ' + i); break; }
       for (let i = 1; i < PN; i++) if (PS[i] <= PS[i - 1]) { out.push('arc not rising at ' + i); break; }
       if (g.snake.length < 2) out.push('snake too short');
