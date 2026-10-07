@@ -52,6 +52,13 @@ body.gl #c, body.gl .aurora, body.gl .vignette, body.gl .grain, body.gl .crt { d
 .bump { animation: bump .34s cubic-bezier(.2, 1.6, .4, 1); }
 @keyframes bump { 35% { transform: scale(1.24); } }
 
+/* ── odometer: every digit is a reel of 0-9 sliding behind a window ── */
+.od .d { display: inline-block; overflow: hidden; height: 1em; line-height: 1; vertical-align: top; }
+.od .r { display: block; transition: transform .45s cubic-bezier(.3, 1.15, .35, 1); }
+.od .r i { display: block; height: 1em; line-height: 1; font-style: normal; }
+.stat b.od { text-shadow: none; filter: drop-shadow(0 0 16px hsla(var(--h1), 100%, 60%, .55)); }
+.final.od i { background: linear-gradient(180deg, #fff 12%, hsl(var(--h1), 100%, 66%) 52%, hsl(var(--h2), 100%, 60%) 96%); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; color: transparent; }
+
 .combo { display: flex; flex-direction: column; align-items: center; gap: 8px; opacity: 0; transform: translateY(8px) scale(.85); transition: opacity .3s ease, transform .35s cubic-bezier(.2, 1.5, .4, 1); }
 .combo.on { opacity: 1; transform: none; }
 .combo b { display: block; font-size: 21px; font-weight: 800; line-height: .9; letter-spacing: .03em; color: hsl(var(--h3), 100%, 72%); text-shadow: 0 0 18px hsla(var(--h3), 100%, 55%, .9); }
@@ -107,7 +114,7 @@ body.coarse .desk { display: none; } body.coarse .mob { display: inline; }
 .sub { margin-top: 20px; font-size: 10.5px; font-weight: 600; letter-spacing: .32em; text-transform: uppercase; color: rgba(255, 255, 255, .5); }
 
 .eyebrow { font-size: 12px; font-weight: 700; letter-spacing: .62em; padding-left: .62em; color: hsl(348, 100%, 72%); text-shadow: 0 0 18px hsla(348, 100%, 60%, .85); }
-.final { margin-top: 10px; font-size: clamp(72px, 17vw, 168px); font-weight: 800; line-height: 1; font-variant-numeric: tabular-nums; letter-spacing: .01em; background: linear-gradient(180deg, #fff 12%, hsl(var(--h1), 100%, 66%) 52%, hsl(var(--h2), 100%, 60%) 96%); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; color: transparent; filter: drop-shadow(0 0 30px hsla(var(--h1), 100%, 55%, .5)); }
+.final { margin-top: 10px; font-size: clamp(72px, 17vw, 168px); font-weight: 800; line-height: 1; font-variant-numeric: tabular-nums; letter-spacing: .01em; filter: drop-shadow(0 0 30px hsla(var(--h1), 100%, 55%, .5)); }
 .newbest { margin-top: 6px; padding: 7px 14px 7px 18px; border-radius: 999px; font-size: 10px; font-weight: 800; letter-spacing: .36em; color: #1d1300; background: linear-gradient(90deg, #ffe08a, #ff9f43); box-shadow: 0 0 28px rgba(255, 190, 80, .65); transform: scale(0); max-height: 0; padding-block: 0; transition: transform .5s cubic-bezier(.2, 1.6, .4, 1) .55s; }
 .newbest.on { transform: scale(1); max-height: 40px; padding-block: 7px; }
 .stats { display: flex; gap: clamp(24px, 6vw, 58px); margin-top: 28px; }
@@ -198,7 +205,7 @@ body[data-mode="menu"] .deck, body[data-mode="over"] .deck { opacity: 0; visibil
 
 <header class="hud" id="hud">
   <div class="left">
-    <div class="stat"><small>SCORE</small><b id="score">0</b></div>
+    <div class="stat"><small>SCORE</small><b id="score" class="od">0</b></div>
     <div class="meter"><small>OVERDRIVE</small><span class="bar"><i id="energy"></i></span></div>
   </div>
   <div class="combo" id="combo"><b id="comboX">×1</b><span class="bar"><i id="comboBar"></i></span></div>
@@ -262,7 +269,7 @@ body[data-mode="menu"] .deck, body[data-mode="over"] .deck { opacity: 0; visibil
 <section class="overlay" id="over">
   <div class="panel">
     <p class="eyebrow" id="overTitle">GAME OVER</p>
-    <div class="final" id="final">0</div>
+    <div class="final od" id="final">0</div>
     <div class="newbest" id="newBest">NEW BEST</div>
     <div class="stats">
       <div><b id="stLen">0</b><small>LENGTH</small></div>
@@ -343,10 +350,13 @@ const audio = (() => {
   const CHORDS = [[45, 57, 60, 64, 67, 71], [41, 53, 57, 60, 64, 67], [48, 55, 60, 64, 67, 71], [43, 55, 59, 62, 67, 69]];
   const ARP = [[0, 1, 2, 3, 4, 3, 2, 1, 0, 1, 2, 3, 4, 3, 2, 1], [0, 2, 1, 3, 2, 4, 3, 2, 0, 2, 1, 3, 4, 3, 2, 1]];
   const SCALE = [69, 72, 74, 76, 79, 81, 84, 86, 88];
+  const KEYS = [0, 2, -1, 3];              // the loop turns over into a new key every fourth phrase
+  const LEAD = [5, 4, 3, 4];               // the answer: the top of the chord, falling home
   const hz = (m) => 440 * 2 ** ((m - 69) / 12);
   let ac = null, master, sfx, mus, lp, send, noise, melo, drums, pump;
   let muted = store.get('muted', '0') === '1', scene = 'menu', heat = 0, stepI = 0, nextT = 0, beatAt = 0, bpm = BPM0;
   let sfxOn = store.get('sfx', '1') === '1', musicOn = store.get('music', '1') === '1', rush = null;
+  let keyT = 0, chT = CHORDS[0], rushOn = false;
   const stepLen = () => 15 / bpm;
 
   function init() {
@@ -413,18 +423,29 @@ const audio = (() => {
 
   // one sixteenth note of the backing track; layers come in with the action
   function playStep(i, at) {
-    const s = i % 16, ch = CHORDS[(i >> 4) % 4], pat = ARP[(i >> 6) & 1];
+    const s = i % 16, bar = (i >> 4) & 3, cycle = i >> 6, pat = ARP[cycle & 1];
+    if (s === 0) {                          // a new key every fourth phrase, a chord every bar
+      if (bar === 0) keyT = KEYS[(cycle >> 2) & 3];
+      chT = CHORDS[bar].map((m) => m + keyT);
+    }
+    const ch = chT;
     if (s % 4 === 0) beatAt = at;
     if (!musicOn) return;                  // keep the clock for the visuals, skip the notes
     const lvl = scene !== 'playing' ? 0 : heat >= 4 ? 3 : heat >= 2 ? 2 : 1;
-    if (s === 0) for (let k = 1; k <= 3; k++) voice('sawtooth', hz(ch[k]), at, stepLen() * 17, 0.024, melo, { attack: 0.45, hold: 0.7, cut: 850, detune: (k - 2) * 7, pan: (k - 2) * 0.55 });
+    const brk = lvl >= 1 && cycle % 8 === 7 && bar === 3;   // one bar of breath before the key turns
+    if (s === 0) { const pd = lvl >= 3 ? 0.55 : 1;          // pads make room once the drums are in
+      for (let k = 1; k <= 3; k++) voice('sawtooth', hz(ch[k]), at, stepLen() * 17, 0.024 * pd, melo, { attack: 0.45, hold: 0.7, cut: 850, detune: (k - 2) * 7, pan: (k - 2) * 0.55 });
+    }
     if (lvl > 0 || s % 2 === 0) {
-      const n = ch[1 + pat[s]] + (lvl >= 3 && s % 4 === 2 ? 12 : 0);
+      const n = ch[1 + pat[s]] + ((lvl >= 3 && s % 4 === 2) || (rushOn && lvl >= 1) ? 12 : 0);
       voice('sawtooth', hz(n), at, 0.28, lvl ? 0.07 : 0.05, melo, { cut: lvl ? 2400 + heat * 250 : 1400, cutTo: 360, q: 5, echo: 1, pan: s % 2 ? 0.3 : -0.3 });
     }
+    if (lvl >= 2 && bar === 3 && ((cycle & 1) === 0 || brk) && s % 4 === 0)   // the lead answers every other phrase
+      voice('square', hz(ch[LEAD[s >> 2]] + 12), at, stepLen() * 3.2, brk ? 0.06 : 0.045, melo, { cut: 3000, attack: 0.03, echo: 1, pan: 0.18 });
+    if (brk && s === 8) hiss(at, stepLen() * 7.5, 0.05, 'bandpass', 400, melo, 6000, 1.4);   // riser into the new key
     if (lvl >= 1) {
-      if (s % 2 === 0) voice('sawtooth', hz(ch[0] + (s === 14 ? 12 : 0)), at, 0.22, s % 4 === 0 ? 0.1 : 0.17, melo, { cut: 560, cutTo: 130, q: 2 });
-      if (s % 4 === 0) {
+      if (s % 2 === 0 && !brk) voice('sawtooth', hz(ch[0] + (s === 14 ? 12 : 0)), at, 0.22, s % 4 === 0 ? 0.1 : 0.17, melo, { cut: 560, cutTo: 130, q: 2 });
+      if (s % 4 === 0 && !brk) {
         voice('sine', 150, at, 0.26, 0.5, drums, { to: 40, glide: 0.11, attack: 0.002 });
         pump.gain.cancelScheduledValues(at); pump.gain.setValueAtTime(0.42, at); pump.gain.setTargetAtTime(1, at + 0.02, 0.085);
       }
@@ -445,7 +466,8 @@ const audio = (() => {
   function applyScene() {
     if (!ac) return;
     const t = ac.currentTime;
-    const cut = scene === 'playing' ? min(12000, 2200 + heat * 1500) : scene === 'dying' ? 240 : scene === 'paused' ? 450 : 1050;
+    let cut = scene === 'playing' ? min(12000, 2200 + heat * 1500) : scene === 'dying' ? 240 : scene === 'paused' ? 450 : 1050;
+    if (rushOn) cut = min(16000, cut + 5200);     // overdrive sweeps the whole track open
     lp.frequency.cancelScheduledValues(t); lp.frequency.setTargetAtTime(cut, t, scene === 'dying' ? 0.1 : 0.35);
     const lvl = !musicOn ? 0 : scene === 'dying' ? 0.22 : scene === 'paused' ? 0.3 : 0.5;
     mus.gain.cancelScheduledValues(t); mus.gain.setTargetAtTime(lvl, t, musicOn ? 0.2 : 0.05);
@@ -468,17 +490,22 @@ const audio = (() => {
       const B = 60 / bpm, ph = ac && ac.state === 'running' && beatAt ? ((((ac.currentTime - beatAt) / B) % 1) + 1) % 1 : (rt / B) % 1;
       return exp(-ph * 5.5);
     },
-    eat(combo, pan = 0) { if (!live()) return; const t = ac.currentTime, n = SCALE[min(combo, SCALE.length) - 1]; voice('triangle', hz(n), t, 0.2, 0.2, sfx, { echo: 1, pan }); voice('sine', hz(n + 12), t + 0.045, 0.16, 0.1, sfx, { pan }); hiss(t, 0.03, 0.05, 'highpass', 5000, sfx); },
-    bonus(pan = 0) { if (!live()) return; const t = ac.currentTime; [69, 72, 76, 81, 84, 88].forEach((n, i) => voice('triangle', hz(n), t + i * 0.05, 0.3, 0.14, sfx, { echo: 1, pan: pan + (i % 2 ? 0.25 : -0.25) })); hiss(t, 0.35, 0.05, 'highpass', 6000, sfx); },
-    bonusSpawn() { if (!live()) return; const t = ac.currentTime; voice('sine', hz(88), t, 0.25, 0.06, sfx, { echo: 1 }); voice('sine', hz(93), t + 0.09, 0.3, 0.05, sfx, { echo: 1 }); },
+    // the scheduler's position: reads as {state, steps, key, bpm}; pass steps to jump the arrangement (tests use it to reach rare bars)
+    clock(steps) {
+      if (steps !== undefined) stepI = steps;
+      return { state: ac ? ac.state : 'off', steps: stepI, key: keyT, bpm };
+    },
+    eat(combo, pan = 0) { if (!live()) return; const t = ac.currentTime, n = SCALE[min(combo, SCALE.length) - 1] + keyT; voice('triangle', hz(n), t, 0.2, 0.2, sfx, { echo: 1, pan }); voice('sine', hz(n + 12), t + 0.045, 0.16, 0.1, sfx, { pan }); hiss(t, 0.03, 0.05, 'highpass', 5000, sfx); },
+    bonus(pan = 0) { if (!live()) return; const t = ac.currentTime; [69, 72, 76, 81, 84, 88].forEach((n, i) => voice('triangle', hz(n + keyT), t + i * 0.05, 0.3, 0.14, sfx, { echo: 1, pan: pan + (i % 2 ? 0.25 : -0.25) })); hiss(t, 0.35, 0.05, 'highpass', 6000, sfx); },
+    bonusSpawn() { if (!live()) return; const t = ac.currentTime; voice('sine', hz(88 + keyT), t, 0.25, 0.06, sfx, { echo: 1 }); voice('sine', hz(93 + keyT), t + 0.09, 0.3, 0.05, sfx, { echo: 1 }); },
     turn() { if (!live()) return; voice('sine', 820, ac.currentTime, 0.035, 0.03, sfx, { to: 620 }); },
     die() { if (!live()) return; const t = ac.currentTime; voice('sawtooth', 196, t, 0.9, 0.2, sfx, { to: 36, cut: 1800, cutTo: 120 }); voice('sine', 130, t, 0.6, 0.5, sfx, { to: 30 }); hiss(t, 0.7, 0.3, 'lowpass', 2400, sfx, 90); },
-    start() { if (!live()) return; const t = ac.currentTime; hiss(t, 0.4, 0.09, 'bandpass', 400, sfx, 6000, 1.5); [57, 64, 69, 76].forEach((n, i) => voice('triangle', hz(n), t + i * 0.055, 0.28, 0.12, sfx, { echo: 1 })); },
+    start() { if (!live()) return; const t = ac.currentTime; hiss(t, 0.4, 0.09, 'bandpass', 400, sfx, 6000, 1.5); [57, 64, 69, 76].forEach((n, i) => voice('triangle', hz(n + keyT), t + i * 0.055, 0.28, 0.12, sfx, { echo: 1 })); },
     comboLost() { if (!live()) return; voice('triangle', 392, ac.currentTime, 0.22, 0.06, sfx, { to: 233 }); },
     blip(up) { if (!live()) return; voice('sine', up ? 520 : 660, ac.currentTime, 0.09, 0.08, sfx, { to: up ? 780 : 440 }); },
-    best() { if (!live()) return; const t = ac.currentTime + 0.4; [76, 81, 84, 88, 93].forEach((n, i) => voice('triangle', hz(n), t + i * 0.09, 0.45, 0.13, sfx, { echo: 1 })); },
+    best() { if (!live()) return; const t = ac.currentTime + 0.4; [76, 81, 84, 88, 93].forEach((n, i) => voice('triangle', hz(n + keyT), t + i * 0.09, 0.45, 0.13, sfx, { echo: 1 })); },
     golden(combo, pan = 0) {
-      if (!live()) return; const t = ac.currentTime, n = SCALE[min(combo, SCALE.length) - 1];
+      if (!live()) return; const t = ac.currentTime, n = SCALE[min(combo, SCALE.length) - 1] + keyT;
       voice('square', hz(n + 12), t, 0.12, 0.05, sfx, { to: hz(n + 24), cut: 5200, pan });
       voice('triangle', hz(n + 19), t + 0.07, 0.3, 0.13, sfx, { echo: 1, pan }); hiss(t, 0.18, 0.06, 'highpass', 7000, sfx);
     },
@@ -486,10 +513,11 @@ const audio = (() => {
     milestone() {
       if (!live()) return; const t = ac.currentTime + 0.08;
       hiss(t - 0.08, 0.5, 0.07, 'bandpass', 300, sfx, 9000, 2); voice('sine', 62, t + 0.42, 0.7, 0.55, sfx, { to: 31, attack: 0.004 });
-      [81, 85, 88, 93].forEach((n, i) => voice('square', hz(n), t + i * 0.08, 0.17, 0.05, sfx, { cut: 3800, echo: 1, pan: (i - 1.5) * 0.4 }));
+      [81, 85, 88, 93].forEach((n, i) => voice('square', hz(n + keyT), t + i * 0.08, 0.17, 0.05, sfx, { cut: 3800, echo: 1, pan: (i - 1.5) * 0.4 }));
     },
     // overdrive: a whoosh on ignition and a rushing-air bed while it lasts
     boost(on) {
+      rushOn = on;
       if (!ac) return;
       if (!rush) {
         const src = ac.createBufferSource(), fl = ac.createBiquadFilter(), g = ac.createGain();
@@ -499,17 +527,24 @@ const audio = (() => {
       const t = ac.currentTime;
       rush.g.gain.setTargetAtTime(on ? 0.06 : 0, t, on ? 0.05 : 0.12); rush.fl.frequency.setTargetAtTime(on ? 2600 : 700, t, 0.3);
       if (on && live()) { hiss(t, 0.4, 0.12, 'bandpass', 420, sfx, 5200, 1.2); voice('sawtooth', 98, t, 0.32, 0.05, sfx, { to: 392, cut: 1600 }); }
+      applyScene();
     },
   };
 })();
 
-// ── gpu finishing: bloom, anamorphic flares, refraction, nebula, film ───
-// The 2D canvas renders the scene; WebGL grades it. Without WebGL the 2D path carries on alone.
+// ── gpu: the snake is lit in gl, then bloom, god rays, grading ───────────
+// The 2D canvas renders the world; WebGL lights the snake on top of it and grades the frame.
+// Half-float targets where the hardware has them (webgl2) so speculars and bloom stop banding.
+// Without WebGL — or if the snake program will not build — the 2D capsule tube carries on alone.
 const fx = (() => {
-  const cv = document.createElement('canvas'), api = { ok: false, cv };
-  let gl = null;
-  try { gl = cv.getContext('webgl', { alpha: false, antialias: false, depth: false, stencil: false, powerPreference: 'high-performance' }); } catch (e) {}
+  const cv = document.createElement('canvas'), api = { ok: false, snakeOk: false, cv };
+  let gl = null, hdr = false;
+  try { gl = cv.getContext('webgl2', { alpha: false, antialias: false, depth: false, stencil: false, powerPreference: 'high-performance' }); } catch (e) {}
+  if (gl) hdr = !!(gl.getExtension('EXT_color_buffer_float') || gl.getExtension('EXT_color_buffer_half_float'));
+  if (!gl) { try { gl = cv.getContext('webgl', { alpha: false, antialias: false, depth: false, stencil: false, powerPreference: 'high-performance' }); } catch (e) {} }
   if (!gl) return api;
+  const IF = hdr ? gl.RGBA16F : gl.RGBA, TY = hdr ? gl.HALF_FLOAT : gl.UNSIGNED_BYTE;
+
   const VS = 'attribute vec2 p; varying vec2 v; void main() { v = p * 0.5 + 0.5; gl_Position = vec4(p, 0.0, 1.0); }';
   const HEAD = 'precision mediump float; varying vec2 v; ';
   const HASH = 'float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); } ';
@@ -524,6 +559,18 @@ const fx = (() => {
       vec4 c = vec4(0.0);
       for (int i = -6; i <= 6; i++) { float w = 1.0 - abs(float(i)) / 7.0; c += max(texture2D(t, v + vec2(float(i) * px.x, 0.0)) - cut, 0.0) * w; }
       gl_FragColor = c / 6.0; }`,
+    blit: HEAD + 'uniform sampler2D t; void main() { gl_FragColor = texture2D(t, v); }',
+    rays: HEAD + `uniform sampler2D t; uniform vec4 L[3];
+      void main() {
+        vec3 acc = vec3(0.0);
+        for (int i = 0; i < 3; i++) {
+          vec4 l = L[i];
+          if (l.z <= 0.0) continue;
+          vec2 d = (l.xy - v) * 0.82 / 10.0, p = v; float w = 1.0; vec3 s = vec3(0.0);
+          for (int k = 0; k < 10; k++) { p += d; s += texture2D(t, clamp(p, 0.0, 1.0)).rgb * w; w *= 0.84; }
+          acc += s * l.z;
+        }
+        gl_FragColor = vec4(acc / 5.4, 1.0); }`,
     neb: HEAD + HASH + `uniform float time, beat; uniform vec2 res; uniform vec3 c1, c2, c3;
       float noise(vec2 p) { vec2 i = floor(p), f = fract(p), u = f * f * (3.0 - 2.0 * f);
         return mix(mix(hash(i), hash(i + vec2(1.0, 0.0)), u.x), mix(hash(i + vec2(0.0, 1.0)), hash(i + vec2(1.0, 1.0)), u.x), u.y); }
@@ -536,9 +583,10 @@ const fx = (() => {
         col += c3 * pow(max(n - 0.57, 0.0), 2.0) * 1.8;
         gl_FragColor = vec4(col * (0.92 + 0.14 * beat), 1.0); }`,
     comp: `precision highp float; varying vec2 v; ` + HASH + `
-      uniform sampler2D scene, glow, bloom, streak, neb;
+      uniform sampler2D scene, glow, bloom, streak, neb, rays;
       uniform vec2 res, head; uniform vec4 waves[4]; uniform vec3 flash;
-      uniform float time, boost, glitch, crt, letter, hurt, calm, bloomK, flareK;
+      uniform float time, boost, glitch, crt, letter, hurt, calm, bloomK, flareK, rayK;
+      uniform vec4 imp;
       void main() {
         vec2 asp = vec2(res.x / res.y, 1.0), uv = v;
         if (crt > 0.5) { vec2 c = uv * 2.0 - 1.0; c += c * c.yx * c.yx * vec2(0.045, 0.065); uv = c * 0.5 + 0.5; }
@@ -565,7 +613,13 @@ const fx = (() => {
         vec4 g = texture2D(glow, uv);
         col += texture2D(bloom, uv).rgb * bloomK * (1.0 - 0.5 * smoothstep(0.1, 0.8, g.a)) + g.rgb * 0.12;
         col += texture2D(streak, uv).rgb * flareK * vec3(0.75, 0.92, 1.3);
+        col += texture2D(rays, uv).rgb * rayK;
         col += flash;
+        if (imp.z > 0.004) {   // impact frame: spokes of light thrown out from the hit
+          vec2 d = (v - imp.xy) * asp; float r = length(d), a = atan(d.y, d.x);
+          col += pow(abs(sin(a * 21.0 + 0.6)), 16.0) * smoothstep(0.06, 0.24, r) * (1.0 - smoothstep(0.3, 1.0, r)) * imp.z;
+          col = mix(col, vec3(dot(col, vec3(0.299, 0.587, 0.114))), -0.35 * imp.z);   // and a punch of extra colour
+        }
         float vig = smoothstep(0.4, 1.25, length(cc * asp * 1.2));
         col *= 1.0 - 0.5 * vig;
         col += vec3(0.6, 0.0, 0.12) * hurt * vig;
@@ -579,22 +633,85 @@ const fx = (() => {
         float lb = letter * 0.085; col *= smoothstep(lb, lb + 0.003, v.y) * smoothstep(lb, lb + 0.003, 1.0 - v.y);
         gl_FragColor = vec4(col, 1.0); }`,
   };
+  // the tube: a strip of quads inflated in the vertex shader, rounded by the caps in the fragment
+  // shader, so one draw call replaces every capsule, band and specular stroke of the 2D tube
+  const SNAKE_VS = `
+    attribute vec2 aC, aN;
+    attribute float aSide, aR, aHue, aLit;
+    uniform vec4 cam; uniform vec2 res; uniform float dy;
+    varying vec2 css, nrm, uvv; varying float side, rad, hue, lit;
+    void main() {
+      vec2 pos = aC + aN * (aR * aSide);
+      css = pos; nrm = aN; side = aSide; rad = aR; hue = aHue; lit = aLit;
+      vec2 d = (pos + vec2(0.0, dy)) * cam.xy + cam.zw;
+      uvv = vec2(d.x / res.x, 1.0 - d.y / res.y);
+      gl_Position = vec4(uvv.x * 2.0 - 1.0, uvv.y * 2.0 - 1.0, 0.0, 1.0);
+    }`;
+  const SNAKE_FS = `precision highp float;
+    varying vec2 css, nrm, uvv; varying float side, rad, hue, lit;
+    uniform sampler2D neb;
+    uniform vec4 capA, capB, eye0, eye1;
+    uniform float ang, aa, shade, heat, glowk;
+    vec3 hsl(float h, float l) {
+      vec3 rgb = clamp(abs(mod(h / 60.0 + vec3(0.0, 4.0, 2.0), 6.0) - 3.0) - 1.0, 0.0, 1.0);
+      return l + (1.0 - abs(2.0 * l - 1.0)) * (rgb - 0.5);
+    }
+    vec3 capN(vec2 dd, float d) { float c = min(d, 1.0); return vec3(dd * (c / max(d, 1e-4)), sqrt(max(0.0, 1.0 - c * c))); }
+    void main() {
+      float s = abs(side), c = min(s, 1.0);
+      vec3 n = vec3(nrm * (side < 0.0 ? -1.0 : 1.0) * c, sqrt(max(0.0, 1.0 - c * c)));
+      vec2 da = (css - capA.xy) / max(capA.z, 1e-3), db = (css - capB.xy) / max(capB.z, 1e-3);
+      float la = length(da), lb = length(db);          // the caps round off both ends
+      if (la < s && la < lb) { s = la; n = capN(da, la); } else if (lb < s) { s = lb; n = capN(db, lb); }
+      float alpha = 1.0 - smoothstep(1.0 - aa / max(rad, 0.4), 1.0 + aa / max(rad, 0.4), s);
+      if (eye0.z > 0.0) {   // the eyes stay in the 2d layer: punch the holes they show through
+        vec2 f = vec2(cos(ang), sin(ang)), q = vec2(-f.y, f.x), e;
+        e = css - eye0.xy; alpha *= smoothstep(0.86, 1.03, length(vec2(dot(e, f), dot(e, q)) / eye0.zw));
+        e = css - eye1.xy; alpha *= smoothstep(0.86, 1.03, length(vec2(dot(e, f), dot(e, q)) / eye1.zw));
+      }
+      if (alpha <= 0.003) discard;
+      if (shade > 0.5) { gl_FragColor = vec4(0.0, 0.0, 0.0, alpha * 0.44); return; }
+      vec3 base = hsl(hue, lit / 100.0);
+      vec3 V = vec3(0.0, 0.0, 1.0), l1 = normalize(vec3(-0.42, -0.6, 0.68)), l2 = normalize(vec3(0.58, 0.3, 0.55));
+      vec3 col = base * (0.4 + 0.72 * max(dot(n, l1), 0.0) + 0.22 * max(dot(n, l2), 0.0));
+      col += base * pow(max(n.z, 0.0), 1.5) * (0.5 + 0.65 * heat);            // lit from within
+      col += pow(max(dot(n, normalize(l1 + V)), 0.0), 46.0) * 2.1;            // key specular, clips straight into the bloom
+      col += mix(vec3(1.0), base, 0.55) * pow(max(dot(n, normalize(l2 + V)), 0.0), 20.0) * 0.4;
+      float fres = pow(1.0 - max(n.z, 0.0), 3.0);
+      col += hsl(hue + 66.0 + 92.0 * (1.0 - n.z), 0.66) * fres * 0.8;         // thin-film sheen round the rim
+      col += texture2D(neb, clamp(uvv + n.xy * 0.13, 0.002, 0.998)).rgb * fres * 0.7;   // the sky, reflected
+      gl_FragColor = vec4(col * alpha * glowk, alpha);
+    }`;
+  const SNAKE_ATTRS = ['aC', 'aN', 'aSide', 'aR', 'aHue', 'aLit'];
+  const SSTRIDE = 32, ATTRS = [[0, 2, 0], [1, 2, 8], [2, 1, 16], [3, 1, 20], [4, 1, 24], [5, 1, 28]];
+
   const progs = {};
   try {
     const sh = (type, src) => { const s = gl.createShader(type); gl.shaderSource(s, src); gl.compileShader(s); if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(s)); return s; };
-    for (const k in SRC) {
+    const link = (vs, fs, names) => {
       const p = gl.createProgram(), u = {};
-      gl.attachShader(p, sh(gl.VERTEX_SHADER, VS)); gl.attachShader(p, sh(gl.FRAGMENT_SHADER, SRC[k]));
-      gl.bindAttribLocation(p, 0, 'p'); gl.linkProgram(p);
+      gl.attachShader(p, sh(gl.VERTEX_SHADER, vs)); gl.attachShader(p, sh(gl.FRAGMENT_SHADER, fs));
+      (names || ['p']).forEach((n, i) => gl.bindAttribLocation(p, i, n));
+      gl.linkProgram(p);
       if (!gl.getProgramParameter(p, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(p));
       for (let i = gl.getProgramParameter(p, gl.ACTIVE_UNIFORMS) - 1; i >= 0; i--) { const n = gl.getActiveUniform(p, i).name; u[n.replace(/\[0\]$/, '')] = gl.getUniformLocation(p, n); }
-      progs[k] = { p, u };
-    }
+      return { p, u };
+    };
+    for (const k in SRC) progs[k] = link(VS, SRC[k]);
+    progs.snake = link(SNAKE_VS, SNAKE_FS, SNAKE_ATTRS);
+    api.snakeOk = true;
   } catch (e) { console.warn('gpu finishing off:', e.message); return api; }
 
-  gl.bindBuffer(gl.ARRAY_BUFFER, gl.createBuffer());
+  const triBuf = gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER, triBuf);
   gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 3, -1, -1, 3]), gl.STATIC_DRAW);
   gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
+  const sBuf = gl.createBuffer();
+  const triAttribs = () => {
+    gl.bindBuffer(gl.ARRAY_BUFFER, triBuf);
+    gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
+    for (let i = 1; i < ATTRS.length; i++) gl.disableVertexAttribArray(i);
+  };
   const tex = () => {
     const t = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, t);
     for (const [k, val] of [[gl.TEXTURE_MIN_FILTER, gl.LINEAR], [gl.TEXTURE_MAG_FILTER, gl.LINEAR], [gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE], [gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE]]) gl.texParameteri(gl.TEXTURE_2D, k, val);
@@ -602,12 +719,12 @@ const fx = (() => {
   };
   const target = (w, h) => {
     const t = tex(), f = gl.createFramebuffer();
-    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, w, h, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+    gl.texImage2D(gl.TEXTURE_2D, 0, IF, w, h, 0, gl.RGBA, TY, null);
     gl.bindFramebuffer(gl.FRAMEBUFFER, f); gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, t, 0);
     return { t, f, w, h };
   };
-  const sceneT = tex(), glowT = tex(), waveBuf = new Float32Array(16);
-  let levels = [], strA = null, strB = null, nebT = null, gw = 1, gh = 1;
+  const sceneT = tex(), glowT = tex(), waveBuf = new Float32Array(16), rayBuf = new Float32Array(12);
+  let levels = [], strA = null, strB = null, nebT = null, sceneM = null, bloomS = null, raysT = null, gw = 1, gh = 1;
 
   function pass(pr, dst, inputs, set) {
     gl.useProgram(pr.p);
@@ -623,24 +740,88 @@ const fx = (() => {
     return [f(0), f(8), f(4)];
   };
 
+  // one pass over the tube: into a target for the gl layer, or (mode) a flat shadow for it
+  function snakePass(dst, sk, o, shadeMode, glowk) {
+    const pr = progs.snake;
+    gl.bindFramebuffer(gl.FRAMEBUFFER, dst ? dst.f : null);
+    gl.viewport(0, 0, dst ? dst.w : cv.width, dst ? dst.h : cv.height);
+    gl.useProgram(pr.p);
+    gl.bindBuffer(gl.ARRAY_BUFFER, sBuf);
+    gl.bufferData(gl.ARRAY_BUFFER, sk.geo.subarray(0, sk.n * 8), gl.DYNAMIC_DRAW);
+    for (const [loc, sz, off] of ATTRS) { gl.enableVertexAttribArray(loc); gl.vertexAttribPointer(loc, sz, gl.FLOAT, false, SSTRIDE, off); }
+    gl.uniform4f(pr.u.cam, o.cam[0], o.cam[1], o.cam[2], o.cam[3]);
+    gl.uniform2f(pr.u.res, o.res[0], o.res[1]);
+    gl.uniform1f(pr.u.aa, o.aa);
+    gl.uniform1f(pr.u.dy, shadeMode ? sk.dy : 0);
+    gl.uniform1f(pr.u.shade, shadeMode ? 1 : 0);
+    gl.uniform1f(pr.u.glowk, glowk);
+    gl.uniform1f(pr.u.heat, o.snakeHeat);
+    gl.uniform1f(pr.u.ang, sk.ang);
+    gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, nebT.t); gl.uniform1i(pr.u.neb, 0);
+    if (o.clip) {   // portals: the overlap lap is trimmed back to the board, as the 2d clip does
+      const c = o.clip, sx = (dst ? dst.w : cv.width) / o.res[0], sy = (dst ? dst.h : cv.height) / o.res[1];
+      gl.enable(gl.SCISSOR_TEST);
+      gl.scissor(floor(c[0] * sx), floor((o.res[1] - c[1] - c[3]) * sy), ceil(c[2] * sx), ceil(c[3] * sy));
+    }
+    const ey = shadeMode ? sk.eye[1] - sk.dy : sk.eye[1];
+    for (const r of sk.runs) {
+      if (r.cnt < 4) continue;
+      gl.uniform4f(pr.u.capA, r.x0, r.y0, r.r0, 0);
+      gl.uniform4f(pr.u.capB, r.x1, r.y1, r.r1, 0);
+      if (r.head && sk.eyeOn) {
+        gl.uniform4f(pr.u.eye0, sk.eye[0], ey, sk.eye[2], sk.eye[3]);
+        gl.uniform4f(pr.u.eye1, sk.eye2[0], ey, sk.eye2[2], sk.eye2[3]);
+      } else { gl.uniform4f(pr.u.eye0, 0, 0, 0, 0); gl.uniform4f(pr.u.eye1, 0, 0, 0, 0); }
+      gl.drawArrays(gl.TRIANGLE_STRIP, r.v0, r.cnt);
+    }
+    gl.disable(gl.SCISSOR_TEST);
+    triAttribs();
+  }
+
   api.ok = true;
+  api.hdr = hdr;
+  const dbg = gl.getExtension('WEBGL_debug_renderer_info');
+  api.renderer = dbg ? gl.getParameter(dbg.UNMASKED_RENDERER_WEBGL) : gl.getParameter(gl.RENDERER);
   cv.addEventListener('webglcontextlost', (e) => { e.preventDefault(); api.ok = false; document.body.classList.remove('gl'); });
   api.resize = (cw, ch, w2, h2) => {
-    for (const l of [...levels, strA, strB, nebT]) if (l) { gl.deleteTexture(l.t); gl.deleteFramebuffer(l.f); }
+    for (const l of [...levels, strA, strB, nebT, sceneM, bloomS, raysT]) if (l) { gl.deleteTexture(l.t); gl.deleteFramebuffer(l.f); }
     levels = []; gw = w2; gh = h2;
     for (let i = 0, w = w2, h = h2; i < 5 && w > 6 && h > 6; i++) { w = ceil(w / 2); h = ceil(h / 2); levels.push(target(w, h)); }
     const L = levels[min(1, levels.length - 1)];
     strA = target(L.w, L.h); strB = target(L.w, L.h); nebT = target(ceil(cw / 4), ceil(ch / 4));
+    raysT = target(ceil(cw / 4), ceil(ch / 4)); sceneM = target(cw, ch); bloomS = target(w2, h2);
     cv.width = cw; cv.height = ch;
   };
-  // o: { scene, glow (2D canvases), time, beat, boost, glitch, crt, letter, hurt, calm, bloomK, flareK, head:[x,y] uv, waves:[...], flash:[r,g,b], hues:[h1,h2,h3] }
+  // o: { scene, glow (2D canvases), time, beat, boost, glitch, crt, letter, hurt, calm, bloomK,
+  //      flareK, head:[x,y] uv, waves:[...], flash:[r,g,b], hues:[...], snake, cam, res:[W,H] css,
+  //      aa, snakeHeat, snakeGlow, clip, rays:[3 × (x,y,weight)], rayK, imp:[x,y,k,0] uv }
   api.draw = (o) => {
     gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true); gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, true);
     gl.bindTexture(gl.TEXTURE_2D, sceneT); gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, o.scene);
     gl.bindTexture(gl.TEXTURE_2D, glowT); gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, o.glow);
-    // bloom: dual-filter blur down a short chain, then back up adding every level together
     gl.disable(gl.BLEND);
-    let src = glowT, sw = gw, sh = gh;
+    const [c1, c2, c3] = [hsl(o.hues[0], 0.9, 0.36), hsl(o.hues[1], 0.9, 0.3), hsl(o.hues[2], 1, 0.5)];
+    pass(progs.neb, nebT, [], (u) => { gl.uniform1f(u.time, o.time); gl.uniform1f(u.beat, o.beat); gl.uniform2f(u.res, nebT.w, nebT.h); gl.uniform3fv(u.c1, c1); gl.uniform3fv(u.c2, c2); gl.uniform3fv(u.c3, c3); });
+    pass(progs.blit, sceneM, [['t', sceneT]], () => {});
+    const sk = o.snake;
+    if (sk) {   // shadow, then the lit body, straight over the scene canvas
+      gl.enable(gl.BLEND); gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
+      snakePass(sceneM, sk, o, 1, 1);
+      snakePass(sceneM, sk, o, 0, 1);
+      gl.disable(gl.BLEND);
+    }
+    // bloom: the half-res tube over the emissive canvas, then down the mip chain and back up
+    gl.bindFramebuffer(gl.FRAMEBUFFER, bloomS.f); gl.viewport(0, 0, bloomS.w, bloomS.h);
+    gl.clearColor(0, 0, 0, 0); gl.clear(gl.COLOR_BUFFER_BIT);
+    if (sk) {
+      gl.enable(gl.BLEND); gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
+      snakePass(bloomS, sk, o, 0, o.snakeGlow);
+      gl.disable(gl.BLEND);
+    }
+    gl.enable(gl.BLEND); gl.blendFunc(gl.ONE, gl.ONE);
+    pass(progs.blit, bloomS, [['t', glowT]], () => {});
+    gl.disable(gl.BLEND);
+    let src = bloomS.t, sw = gw, sh = gh;
     for (const l of levels) { pass(progs.down, l, [['t', src]], (u) => gl.uniform2f(u.px, 1 / sw, 1 / sh)); src = l.t; sw = l.w; sh = l.h; }
     gl.enable(gl.BLEND); gl.blendFunc(gl.ONE, gl.ONE);
     for (let i = levels.length - 2; i >= 0; i--) { const s = levels[i + 1]; pass(progs.up, levels[i], [['t', s.t]], (u) => gl.uniform2f(u.px, 0.5 / s.w, 0.5 / s.h)); }
@@ -649,12 +830,14 @@ const fx = (() => {
     pass(progs.streak, strA, [['t', levels[0].t]], (u) => { gl.uniform2f(u.px, 1 / strA.w, 0); gl.uniform1f(u.cut, 0.3); });
     pass(progs.streak, strB, [['t', strA.t]], (u) => { gl.uniform2f(u.px, 3 / strA.w, 0); gl.uniform1f(u.cut, 0); });
     pass(progs.streak, strA, [['t', strB.t]], (u) => { gl.uniform2f(u.px, 9 / strA.w, 0); gl.uniform1f(u.cut, 0); });
-    const [c1, c2, c3] = [hsl(o.hues[0], 0.9, 0.36), hsl(o.hues[1], 0.9, 0.3), hsl(o.hues[2], 1, 0.5)];
-    pass(progs.neb, nebT, [], (u) => { gl.uniform1f(u.time, o.time); gl.uniform1f(u.beat, o.beat); gl.uniform2f(u.res, nebT.w, nebT.h); gl.uniform3fv(u.c1, c1); gl.uniform3fv(u.c2, c2); gl.uniform3fv(u.c3, c3); });
+    // god rays: the emissive layer scattered toward the food, the bonus and the head
+    rayBuf.fill(0); (o.rays || []).forEach((r, i) => rayBuf.set(r, i * 4));
+    pass(progs.rays, raysT, [['t', levels[0].t]], (u) => gl.uniform4fv(u.L, rayBuf));
     waveBuf.fill(0); o.waves.forEach((w, i) => waveBuf.set(w, i * 4));
-    pass(progs.comp, null, [['scene', sceneT], ['glow', glowT], ['bloom', levels[0].t], ['streak', strA.t], ['neb', nebT.t]], (u) => {
+    pass(progs.comp, null, [['scene', sceneM.t], ['glow', glowT], ['bloom', levels[0].t], ['streak', strA.t], ['neb', nebT.t], ['rays', raysT.t]], (u) => {
       gl.uniform2f(u.res, cv.width, cv.height); gl.uniform2fv(u.head, o.head); gl.uniform4fv(u.waves, waveBuf); gl.uniform3fv(u.flash, o.flash);
-      for (const k of ['time', 'boost', 'glitch', 'crt', 'letter', 'hurt', 'calm', 'bloomK', 'flareK']) gl.uniform1f(u[k], o[k]);
+      gl.uniform4fv(u.imp, o.imp);
+      for (const k of ['time', 'boost', 'glitch', 'crt', 'letter', 'hurt', 'calm', 'bloomK', 'flareK', 'rayK']) gl.uniform1f(u[k], o[k]);
     });
   };
   return api;
@@ -683,6 +866,7 @@ let boostHeld = false, boostFx = 0, crtBuf = null, letter = 0;
 const waves = [];   // refraction rings for the gpu pass, in css px
 let realTime = 0, timeScale = 1, freeze = 0, beat = 0;
 let shake = 0, shX = 0, shY = 0, punch = 0, flash = 0, flashRGB = '255,255,255', glitch = 0, hurt = 0;
+let imp = 0, impX = 0, impY = 0;   // impact frame: spokes of light thrown from the last big eat
 let hue = HUE0, hueTarget = HUE0, cssHue = -1e9, cssTheme = null;
 let overAt = -10, demoAt = 0, shownScore = 0, comboOn = false;
 
@@ -922,7 +1106,8 @@ function resolveEat(g) {
     g.score += pts; g.energy = bonus ? 100 : min(100, g.energy + 20);
     const sub = bonus ? 'NOVA!' : gold ? 'GOLD ×5' : [g.combo > 1 ? '×' + g.combo : '', mult > 1 ? 'OVERDRIVE ×2' : ''].filter(Boolean).join(' · ');
     popup(x, y - cell * 0.5, '+' + pts, h, cell * (big ? 0.95 : 0.6 + min(g.combo, 6) * 0.045), sub);
-    shake = max(shake, big ? 8 : 2.2 + min(g.combo, 9) * 0.45); punch = max(punch, big ? 0.03 : 0.011);
+    shake = max(shake, big ? 8 : 2.2 + min(g.combo, 9) * 0.45); punch = max(punch, big ? 0.05 : 0.011);
+    if (big) { imp = 1; impX = x; impY = y; }   // spokes of light, punched into the gpu pass
     freeze = max(freeze, big ? 0.09 : 0.06);   // hitstop
     const pan = clamp((x - W / 2) / (W / 2), -1, 1) * 0.7;
     if (bonus) { glitch = max(glitch, 0.45); flash = 0.22; flashRGB = '255,230,170'; audio.bonus(pan); }
@@ -1236,6 +1421,56 @@ function shade(g) {
   }
 }
 
+// the gl tube: one strip of quads down the centre line, in css px; the shader rounds the caps
+// and lights it, so the 2d tube only runs when there is no gl to draw it with
+const SGEO = new Float32Array(8 * 2 * 4600), sRuns = [];
+function snakeGeo(g) {
+  sRuns.length = 0;
+  if (PN < 2) return null;
+  let cut = 0;
+  if (!g.alive) { while (cut < PN - 1 && PS[cut] < g.dissolve) cut++; if (cut >= PN - 1) return null; }
+  const infl = 1.3 / dpr, stride = max(1, ceil((PN - cut) / 4400)), stop = SGEO.length / 8 - 2;
+  let n = 0;
+  for (let k = 0; k < runs.length; k += 4) {
+    const i0 = max(runs[k + 2], cut), last = runs[k + 3];
+    if (last <= i0 || n + 2 > stop) continue;
+    const sx = runs[k] * cell, sy = runs[k + 1] * cell;
+    const put = (i, back) => {     // back runs one radius past the end so the cap has room to round off
+      if (n + 2 > stop) return;
+      const a = max(i0, i - 1), b = min(last, i + 1);
+      let tx = PX[b] - PX[a], ty = PY[b] - PY[a];
+      const d = hypot(tx, ty) || 1; tx /= d; ty /= d;
+      const rad = max(PR[i] * cell, 0.35);
+      let cx = bx + (PX[i] + 0.5) * cell + sx, cy = by + (PY[i] + 0.5) * cell + sy;
+      if (back) { cx -= back * tx * rad; cy -= back * ty * rad; }
+      const m = (rad + infl) / rad, hue = PH[i], lit = PL[i];
+      for (const s of [m, -m]) {   // two vertices per sample: the edges the strip is inflated to
+        SGEO[n * 8] = cx; SGEO[n * 8 + 1] = cy;
+        SGEO[n * 8 + 2] = -ty; SGEO[n * 8 + 3] = tx;
+        SGEO[n * 8 + 4] = s; SGEO[n * 8 + 5] = rad;
+        SGEO[n * 8 + 6] = hue; SGEO[n * 8 + 7] = lit;
+        n++;
+      }
+    };
+    const r = { v0: n, head: i0 === 0 };
+    put(i0, 1);
+    for (let i = i0; i < last; i += stride) put(i, 0);
+    put(last, 0); put(last, -1);
+    r.cnt = n - r.v0;
+    const rad = (i) => max(PR[i] * cell, 0.35);
+    r.x0 = bx + (PX[i0] + 0.5) * cell + sx; r.y0 = by + (PY[i0] + 0.5) * cell + sy; r.r0 = rad(i0);
+    r.x1 = bx + (PX[last] + 0.5) * cell + sx; r.y1 = by + (PY[last] + 0.5) * cell + sy; r.r1 = rad(last);
+    sRuns.push(r);
+  }
+  if (!sRuns.length) return null;
+  const hx = bx + (PX[0] + 0.5) * cell, hy = by + (PY[0] + 0.5) * cell, a = g.angle;
+  const ux = cos(a), uy = sin(a), R = cell;
+  const ry = R * (g.alive ? 0.145 : 0.17), rx = ry * (g.alive && g.blink < 0 ? 0.12 : 1);
+  const eye = [], eye2 = [];
+  for (const [s, e] of [[-1, eye], [1, eye2]]) e.push(hx + ux * R * 0.1 - uy * R * 0.21 * s, hy + uy * R * 0.1 + ux * R * 0.21 * s, rx, ry);
+  return { n, runs: sRuns, geo: SGEO, dy: cell * 0.14, eye, eye2, eyeOn: sRuns[0].head && g.dissolve < 0.3, ang: a };
+}
+
 // ── drawing ─────────────────────────────────────────────────────────────
 let camX = 0, camY = 0, camZ = 0;
 function camera(c, sx, sy) {
@@ -1388,15 +1623,17 @@ function capsules(c, i0, last, hop, k, lift) {
 
 function drawSnake(c, g, gp) {
   if (PN < 2) return;
+  const gpu = fx.ok && fx.snakeOk;   // the gl tube draws itself; 2d keeps only what sits on top of it
   let cut = 0;   // the dead snake burns away from the head
   if (!g.alive) { while (cut < PN - 1 && PS[cut] < g.dissolve) cut++; if (cut >= PN - 1) return; }
   for (let k = 0; k < runs.length; k += 4) {
     const i0 = max(runs[k + 2], cut), last = runs[k + 3];
-    if (last <= i0) continue;
+    if (last <= i0 || (gpu && (gp || i0 > 0))) continue;
     c.save();
     if (opts.portal) { c.beginPath(); c.rect(bx, by, bw, bh); c.clip(); }
     c.translate(runs[k] * cell, runs[k + 1] * cell);
-    drawSnakeRun(c, g, gp, i0, last);
+    if (gpu) { if (g.alive) drawTongue(c, g); if (g.dissolve < 0.3) drawEyes(c, g); }
+    else drawSnakeRun(c, g, gp, i0, last);
     c.restore();
   }
 }
@@ -1612,23 +1849,52 @@ function render() {
   post();
 }
 
-// the gpu pass: bloom under everything, flares, rings of refraction, speed blur, grading
+// the gpu pass: the lit tube, bloom under everything, god rays, flares, refraction, grading
 function finish(g, heat) {
   const hx = bx + (wrapC(PX[0] || 0, g.cols) + 0.5) * cell, hy = by + (wrapC(PY[0] || 0, g.rows) + 0.5) * cell;
   const ws = [];
   for (let i = waves.length - 1; i >= 0 && ws.length < 4; i--) { const w = waves[i], k = w.life / w.ttl; ws.push([w.x / W, 1 - w.y / H, w.r / H, w.amp * k * k * (calm ? 0.3 : 1)]); }
   const f = flash > 0.01 ? flashRGB.split(',').map((n) => (n / 255) * flash) : [0, 0, 0];
   const th = opts.theme, pal = th.body;
+  const z = 1 + punch + camZ;
+  const lights = [], put = (x, y, w) => { if (lights.length < 3) lights.push([x / W, 1 - y / H, w, 0]); };
+  if (g.bonus) put(cellX(g.bonus.x), cellY(g.bonus.y), 1.15);
+  if (g.food) put(cellX(g.food.x), cellY(g.food.y), g.food.golden ? 1 : 0.7);
+  put(hx, hy, 0.5);
   fx.draw({
     scene: canvas, glow: glow[0].c, time: realTime, beat, boost: boostFx, glitch: calm ? glitch * 0.3 : glitch, crt: opts.crt ? 1 : 0,
     letter, hurt, calm: calm ? 1 : 0, bloomK: 1.05 + heat * 2.6, flareK: 0.32 + heat * 1.4 + boostFx * 0.35,
     head: [hx / W, 1 - hy / H], waves: ws, flash: f,
     hues: [hue, pal ? pal[1] : hue + 80, pal ? th.food : hue + FOOD_SHIFT],
+    snake: fx.snakeOk ? snakeGeo(g) : null,
+    cam: [z, z, (bx + bw / 2) * (1 - z) + shX + camX, (by + bh / 2) * (1 - z) + shY + camY],
+    res: [W, H], aa: 1.3 / dpr, snakeHeat: min(1, heat * 3), snakeGlow: 1.1,
+    clip: opts.portal ? [bx, by, bw, bh] : null,
+    rays: lights, rayK: (0.5 + heat * 2.4 + boostFx * 0.5) * (calm ? 0.3 : 1),
+    imp: [impX / W, 1 - impY / H, imp, 0],
   });
 }
 
 // ── hud & flow ──────────────────────────────────────────────────────────
 function setText(el, v) { v = String(v); if (el._t !== v) { el._t = v; el.textContent = v; } }
+function odo(el, v) {   // odometer: each digit is a reel of 0-9 sliding behind its own window
+  const s = String(v);
+  if (el._s === s) return;
+  if (!el._o || el._o.length !== s.length) {            // the number grew or shrank: rebuild the reels
+    el.textContent = ''; el._o = [];
+    for (let i = 0; i < s.length; i++) {
+      const d = document.createElement('span'); d.className = 'd';
+      const r = document.createElement('span'); r.className = 'r';
+      for (let k = 0; k < 10; k++) r.appendChild(document.createElement('i')).textContent = k;
+      d.appendChild(r); el.appendChild(d); el._o.push(d);
+    }
+  }
+  for (let i = 0; i < s.length; i++) {
+    const n = s.charCodeAt(i) - 48, d = el._o[i];
+    if (d._n !== n) { d._n = n; d.firstChild.style.transform = 'translateY(' + (-n * 10) + '%)'; }
+  }
+  el._s = s;
+}
 function bump(el) { el.classList.remove('bump'); void el.offsetWidth; el.classList.add('bump'); }
 function buzz(ms) { try { if (navigator.vibrate) navigator.vibrate(ms); } catch (e) {} }
 
@@ -1643,11 +1909,11 @@ function setGame(g) { G = g; fitBoard(); buildPath(g); }
 function updateHud(dt) {
   const g = P, target = g ? g.score : 0;
   if (shownScore !== target) { shownScore += (target - shownScore) * min(1, dt * 14); if (abs(target - shownScore) < 0.6) shownScore = target; }
-  setText(scoreEl, round(shownScore)); setText(bestEl, max(best, target));
+  odo(scoreEl, round(shownScore)); setText(bestEl, max(best, target));
   const on = !!g && (mode === 'playing' || mode === 'paused') && g.comboT > 0;
   if (on !== comboOn) { comboOn = on; comboEl.classList.toggle('on', on); }
   if (on) { setText(comboXEl, '×' + g.combo); comboBarEl.style.transform = `scaleX(${clamp(g.comboT / g.comboWin, 0, 1).toFixed(3)})`; }
-  if (mode === 'over' && g) setText(finalEl, round(g.score * outCubic(clamp((realTime - overAt) / 0.9, 0, 1))));
+  if (mode === 'over' && g) odo(finalEl, round(g.score * outCubic(clamp((realTime - overAt) / 0.9, 0, 1))));
   const e = clamp(g && mode !== 'menu' ? g.energy / 100 : 1, 0, 1).toFixed(3);
   if (energyEl._e !== e) { energyEl._e = e; energyEl.style.transform = `scaleX(${e})`; if (deckH) boostBtn.style.setProperty('--e', e); }
 }
@@ -1686,7 +1952,7 @@ function gameOver() {
   let rank = -1;
   if (g.score > 0) { top3.push(g.score); top3.sort((a, b) => b - a); top3 = top3.slice(0, 3); rank = top3.indexOf(g.score); store.set('top', JSON.stringify(top3)); }
   overTitleEl.textContent = g.perfect ? 'PERFECT RUN' : 'GAME OVER';
-  setText(finalEl, 0); newBestEl.classList.toggle('on', record);
+  odo(finalEl, 0); newBestEl.classList.toggle('on', record);
   const sec = floor(g.time);
   $('stLen').textContent = g.snake.length; $('stOrbs').textContent = g.eaten; $('stCombo').textContent = '×' + g.comboMax;
   $('stTime').textContent = floor(sec / 60) + ':' + String(sec % 60).padStart(2, '0');
@@ -1841,6 +2107,7 @@ function tick(dt) {
     if (freeze > 0) { freeze -= dt; gdt = 0; } else timeScale = min(1, timeScale + dt * 1.1);
     shake *= exp(-dt * 7.5); punch *= exp(-dt * 11); flash *= exp(-dt * 7); hurt *= exp(-dt * 2.2);
     glitch = max(0, glitch - dt * 2.6);
+    imp = max(0, imp - dt * 6.5);
     updateGame(G, gdt, dt);
     updateFx(gdt);
     if (!G.alive && !G.done && G.dieT > G.dieEnd) { G.done = true; if (G.demo) setGame(newGame(true)); else gameOver(); }

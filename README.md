@@ -1,22 +1,18 @@
-# Neon Snake: Ultimate
+# Neon Snake: Ultimate 2
 
-The most over-the-top version of Neon Snake. Still a single HTML file with no build step and no dependencies.
+The next cut of Neon Snake: Ultimate. Still a single HTML file with no build step and no dependencies — now with a snake that is genuinely lit in 3D, a soundtrack that arranges itself, and a scoreboard with gears in it.
 
-**Play it:** https://gabarsolon.github.io/neon-snake-ultimate/
+**Play it:** https://gabarsolon.github.io/neon-snake-ultimate-2/
 
-It builds on [Neon Snake Merged](https://github.com/Gabarsolon/neon-snake-merged), which already has every feature from snake-game and Cyber Viper 2099, and pushes the look and sound as far as they go.
+It builds on [Neon Snake: Ultimate](https://github.com/Gabarsolon/neon-snake-ultimate), which builds on [Neon Snake Merged](https://github.com/Gabarsolon/neon-snake-merged).
 
-## What's new in Ultimate
+## What's new in 2
 
-- **GPU finishing (WebGL):** real bloom, anamorphic lens flares, shockwaves that bend the picture as they pass, a radial speed blur during overdrive, chromatic aberration, film grain and a vignette.
-- **Living background:** an animated nebula in the colours of your theme, with twinkling stars.
-- **Cinematic deaths:** the snake shatters into tumbling glass shards, with letterbox bars, slow motion, glitch tearing and a red flash.
-- **Detail:** scales down the snake's back, coloured irises, an energy pulse that runs round the frame (faster as your combo climbs), a glass sheen sweeping the board, and a camera that drifts with the snake and rushes in when a run starts.
-- **Title screen:** the letters flicker on like neon tubes, a shine rolls across them, and the word tilts toward your mouse.
-- **Sound:** a generated reverb hall, stereo pads, eat sounds panned to where you ate, sidechain pumping on the kick, and a riser with a sub drop on combo milestones.
-- **Moments:** a NEW BEST! banner the instant you pass your record mid-run.
-
-Browsers without WebGL fall back to the 2D renderer, so the game still runs everywhere.
+- **The snake is lit in WebGL:** real tube geometry with union end caps, two-light shading, subsurface glow, fresnel rim and a reflection of the nebula behind it. Eyes are punched out of the shading so the glow shows through, and the body splits into two lit runs when it straddles a portal wall.
+- **The frame is graded like film:** half-float bloom, god rays, anamorphic streaks, barrel distortion with scanlines (CRT), chromatic aberration, grain and vignette — with a quality scaler that keeps the frame budget honest on weak hardware.
+- **The soundtrack plays along:** the loop turns into a new key every fourth phrase, a lead answers at the end of every other phrase, and every eighth phrase drops the kick and bass for one bar — a riser carries you into the key change. Overdrive sweeps the whole track open and lifts the arpeggio an octave; high combos duck the pads to make room for the drums.
+- **Odometer score:** every digit is its own reel of 0–9 sliding behind a window, on the HUD and on the game-over total.
+- **Everything from Ultimate is still here:** overdrive, golden orbs, Nova, combos and banners, 7 themes, portal or solid walls, three paces, CRT, attract mode, touch controls, top 3 scores, saved settings, reduced motion, and a 2D fallback for browsers without WebGL.
 
 ## Controls
 
@@ -33,3 +29,14 @@ Options on the title, pause and game-over screens: 7 colour themes, solid or por
 ## Run locally
 
 Open `index.html` in any modern browser.
+
+## Tests
+
+`test/` holds a headless harness built on plain Node and Chrome DevTools — no packages to install. It drives every scene (boot, menu, gameplay, overdrive, golden, Nova, death, themes, portal, CRT, touch, reduced motion, pacing, audio) and checks the render pixels, the game invariants, the audio scheduler and the DOM overlays.
+
+```
+node test/harness.mjs                     # the whole suite
+node test/harness.mjs --only=crt,phone    # a subset, --quiet to drop the ascii frames
+```
+
+Screenshots land in `test/shots/`.
