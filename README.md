@@ -1,6 +1,6 @@
-# Neon Snake: Ultimate 2
+# fratele sharpe
 
-The next cut of Neon Snake: Ultimate. Still a single HTML file with no build step and no dependencies — now with a snake that is genuinely lit in 3D, a soundtrack that arranges itself, and a scoreboard with gears in it.
+fratele sharpe — the next cut of Neon Snake: Ultimate, under a new name. Still a single HTML file with no build step and no dependencies — now with a snake that is genuinely lit in 3D, a soundtrack that arranges itself, and a scoreboard with gears in it.
 
 **Play it:** https://gabarsolon.github.io/neon-snake-ultimate-2/
 

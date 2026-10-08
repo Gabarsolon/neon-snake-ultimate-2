@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Headless checks for Neon Snake: console errors, game invariants, screenshots, frame pacing.
+// Headless checks for fratele sharpe: console errors, game invariants, screenshots, frame pacing.
 // node test/harness.mjs [--quick] [--only=name1,name2] [--quiet]
 import { spawn } from 'node:child_process';
 import http from 'node:http';
