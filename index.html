@@ -134,8 +134,10 @@ body.coarse .desk { display: none; } body.coarse .mob { display: inline; }
 .meter small { font-size: 9.5px; font-weight: 700; letter-spacing: .3em; color: rgba(255, 255, 255, .42); transition: color .2s ease; }
 .meter .bar { display: block; width: clamp(70px, 9vw, 112px); height: 5px; border-radius: 5px; background: rgba(255, 255, 255, .1); overflow: hidden; }
 .meter .bar i { display: block; height: 100%; border-radius: inherit; transform-origin: 0 50%; background: linear-gradient(90deg, hsl(var(--h1), 100%, 60%), hsl(var(--h2), 100%, 72%)); box-shadow: 0 0 10px hsla(var(--h1), 100%, 60%, .8); }
-body.boosting .meter .bar i { background: linear-gradient(90deg, #ff2d7a, #ffd25a); }
+body.boosting .meter .bar i { background: linear-gradient(90deg, #ff2d7a, #ffd25a); box-shadow: 0 0 18px rgba(255, 45, 122, .95); animation: barfire .28s ease-in-out infinite alternate; }
 body.boosting .meter small { color: #ff9ac4; }
+body.boosting .hud { filter: drop-shadow(0 0 20px rgba(0, 229, 255, .65)) saturate(1.35); }
+body.boosting .combo b { text-shadow: 2px 0 0 rgba(255, 45, 122, .8), -2px 0 0 rgba(0, 229, 255, .8), 0 0 26px rgba(255, 210, 90, 1); }
 body[data-mode="menu"] .meter, body[data-mode="over"] .meter { opacity: 0; }
 body.coarse .meter { display: none; }
 
@@ -886,7 +888,7 @@ let demoCount = 0;
 let best = parseInt(store.get('best', '0'), 10) || 0;
 let top3 = [];
 try { top3 = (JSON.parse(store.get('top', '[]')) || []).filter((v) => v > 0).slice(0, 3); } catch (e) {}
-let boostHeld = false, boostFx = 0, crtBuf = null, letter = 0;
+let boostHeld = false, boostFx = 0, rushFx = 0.45, crtBuf = null, letter = 0;
 const waves = [];   // refraction rings for the gpu pass, in css px
 let realTime = 0, timeScale = 1, freeze = 0, beat = 0;
 let shake = 0, shX = 0, shY = 0, punch = 0, flash = 0, flashRGB = '255,255,255', glitch = 0, hurt = 0;
@@ -1187,7 +1189,8 @@ function boostChanged(g) {
   audio.boost(g.boosting);
   if (!g.boosting || PN < 1) return;
   const x = bx + (wrapC(PX[0], g.cols) + 0.5) * cell, y = by + (wrapC(PY[0], g.rows) + 0.5) * cell;
-  ring(x, y, 330, cell * 2.6, 0.45, 3); punch = max(punch, 0.02); shake = max(shake, 3);
+  ring(x, y, 360, cell * 3.2, 0.6, 4); punch = max(punch, 0.04); shake = max(shake, 6);   // shift ignition hits harder
+  glitch = max(glitch, 0.3); flash = max(flash, 0.07); flashRGB = '190,230,255';
 }
 
 function updateGame(g, gdt, dt) {
@@ -1228,12 +1231,12 @@ function updateGame(g, gdt, dt) {
   if ((g.blink -= gdt) < -0.13) g.blink = rnd(1.8, 5);
   const f = g.food, sniff = f && hypot(f.x - g.snake[0].x, f.y - g.snake[0].y) < 4.5;   // flicks faster near food
   if ((g.tongue -= gdt) < -0.42) g.tongue = sniff ? rnd(0.1, 0.45) : rnd(1.6, 4.5);
-  if (g.boosting && PN > 3) {
+  if ((g.boosting || fever > 0.3) && PN > 3) {
     // plasma exhaust off the tail and light streaks rushing past
     const i = PN - 1, tx = bx + (wrapC(PX[i], g.cols) + 0.5) * cell, ty = by + (wrapC(PY[i], g.rows) + 0.5) * cell;
     const a = atan2(PY[i] - PY[i - 3], PX[i] - PX[i - 3]);
     for (let k = 0; k < 2; k++) { const b = a + rnd(-0.5, 0.5), v = cell * rnd(3, 7); spark(tx, ty, cos(b) * v, sin(b) * v, rnd(0.2, 0.45), cell * 0.075, foodHue() + rnd(-25, 25), 66); }
-    if (streaks.length < 28 && Math.random() < gdt * 45) {
+    if (streaks.length < 28 && Math.random() < gdt * (g.boosting ? 45 : 18)) {
       const v = cell * rnd(24, 38);
       streaks.push({ x: rnd(bx, bx + bw), y: rnd(by, by + bh), vx: -g.dir.x * v, vy: -g.dir.y * v, len: cell * rnd(1.5, 4.5), life: 0.32, ttl: 0.32 });
     }
@@ -1557,7 +1560,7 @@ function drawLights(c, g) {
   c.save();
   rr(c, bx - cell * PAD, by - cell * PAD, bw + cell * PAD * 2, bh + cell * PAD * 2, cell * 0.5); c.clip();
   c.globalCompositeOperation = 'lighter';
-  if (g.alive) light(c, bx + (wrapC(PX[0], g.cols) + 0.5) * cell, by + (wrapC(PY[0], g.rows) + 0.5) * cell, cell * (4.6 + 1.2 * fever * beat), bodyHue(0) + 10, 0.2 + 0.12 * boostFx + 0.15 * fever * beat);
+  if (g.alive) light(c, bx + (wrapC(PX[0], g.cols) + 0.5) * cell, by + (wrapC(PY[0], g.rows) + 0.5) * cell, cell * (4.6 + 1.2 * fever * beat), bodyHue(0) + 10, 0.2 + 0.12 * rushFx + 0.15 * fever * beat);
   if (g.food) light(c, cellX(g.food.x), cellY(g.food.y), cell * (2.7 + 0.25 * beat + 0.5 * fever * beat), g.food.golden ? GOLD : foodHue(), g.food.golden ? 0.28 : 0.2);
   if (g.bonus) light(c, cellX(g.bonus.x), cellY(g.bonus.y), cell * 3.2, novaHue(g), 0.22);
   for (const a of afterglow) light(c, cellX(a.x), cellY(a.y), cell * 0.95, a.h, 0.15 * (a.life / 0.5));   // the board keeps a glow where the tail just was
@@ -1565,15 +1568,15 @@ function drawLights(c, g) {
 }
 
 function drawFrame(c, gp) {
-  const p = cell * PAD, h = turnTo(turnTo(hue, 330, boostFx * 0.85, 360), 350, hurt, 360), a = min(1, 0.5 + 0.28 * beat + 0.4 * hurt + 0.35 * boostFx + fever * (0.4 + 0.3 * beat));
+  const p = cell * PAD, h = turnTo(turnTo(hue, 330, rushFx * 0.85, 360), 350, hurt, 360), a = min(1, 0.5 + 0.28 * beat + 0.4 * hurt + 0.35 * rushFx + fever * (0.4 + 0.3 * beat));
   rr(c, bx - p, by - p, bw + p * 2, bh + p * 2, cell * 0.5);
-  c.strokeStyle = hsla(h, 100 - fever * 45, (gp ? 58 : 74) + fever * 18, gp ? a * 0.8 : a); c.lineWidth = (gp ? 4 : 1.5) + boostFx + fever * (0.8 + beat * 1.2);
+  c.strokeStyle = hsla(h, 100 - fever * 45, (gp ? 58 : 74) + fever * 18, gp ? a * 0.8 : a); c.lineWidth = (gp ? 4 : 1.5) + rushFx * 0.7 + fever * (0.8 + beat * 1.2);
   if (opts.portal) { c.setLineDash([cell * 0.55, cell * 0.3]); c.lineDashOffset = -realTime * cell * 1.4; }   // portal walls: open, marching
   c.stroke();
   // two pulses of current chase round the border, quicker as the run heats up
   const fw = bw + p * 2, fh = bh + p * 2, rad = min(cell * 0.5, fw / 2, fh / 2), per = 2 * (fw + fh) - (8 - TAU) * rad, len = per * 0.07;
   const run = P && (mode === 'playing' || mode === 'paused') ? min(P.combo, 10) : 1;
-  c.setLineDash([len, per / 2 - len]); c.lineDashOffset = -realTime * per * (0.06 + 0.025 * run + boostFx * 0.18);
+  c.setLineDash([len, per / 2 - len]); c.lineDashOffset = -realTime * per * (0.06 + 0.025 * run + rushFx * 0.18);
   rr(c, bx - p, by - p, fw, fh, cell * 0.5);
   c.strokeStyle = hsla(h + 25, 100, gp ? 72 : 90, 1); c.lineWidth = gp ? 6 : 2.4; c.stroke();
   if (fever > 0.05) {   // a third counter-running pulse appears while the run overheats
@@ -1905,7 +1908,7 @@ function render() {
   gc.clearRect(0, 0, g0.w, g0.h);
   camera(gc, g0.w / W, g0.h / H);
   drawDots(gc, g, true); drawFrame(gc, true); drawScene(gc, g, true);
-  const heat = (P && mode === 'playing' ? min(P.combo - 1, 11) * 0.02 : 0) + beat * 0.03 + boostFx * 0.12 + fever * 0.1;
+  const heat = (P && mode === 'playing' ? min(P.combo - 1, 11) * 0.02 : 0) + beat * 0.03 + rushFx * 0.12 + fever * 0.1;
   if (fx.ok) {
     camera(c, dpr, dpr);
     drawScene(c, g, false);
@@ -1933,15 +1936,15 @@ function finish(g, heat) {
   if (g.food) put(cellX(g.food.x), cellY(g.food.y), g.food.golden ? 1 : 0.7);
   put(hx, hy, 0.5);
   fx.draw({
-    scene: canvas, glow: glow[0].c, time: realTime, beat, fever, boost: boostFx + fever * 0.3, glitch: calm ? glitch * 0.3 : glitch, crt: opts.crt ? 1 : 0,
-    letter, hurt, calm: calm ? 1 : 0, bloomK: 1.05 + heat * 3.4 + fever * 2.2, flareK: 0.32 + heat * 1.9 + boostFx * 0.35 + fever * 1.1,
+    scene: canvas, glow: glow[0].c, time: realTime, beat, fever, boost: rushFx + fever * 0.3, glitch: calm ? glitch * 0.3 : glitch, crt: opts.crt ? 1 : 0,
+    letter, hurt, calm: calm ? 1 : 0, bloomK: 1.05 + heat * 3.4 + fever * 2.2, flareK: 0.32 + heat * 1.9 + rushFx * 0.5 + fever * 1.1,
     head: [hx / W, 1 - hy / H], waves: ws, flash: f,
     hues: [hue, pal ? pal[1] : hue + 80, pal ? th.food : hue + FOOD_SHIFT],
     snake: fx.snakeOk ? snakeGeo(g) : null,
     cam: [z, z, (bx + bw / 2) * (1 - z) + shX + camX, (by + bh / 2) * (1 - z) + shY + camY],
     res: [W, H], aa: 1.3 / dpr, snakeHeat: min(1, heat * 3.5 + fever * 0.35), snakeGlow: 1.1 + fever * 0.9,
     clip: opts.portal ? [bx, by, bw, bh] : null,
-    rays: lights, rayK: (0.5 + heat * 3.2 + boostFx * 0.5 + fever * 1.6) * (calm ? 0.3 : 1),
+    rays: lights, rayK: (0.5 + heat * 3.2 + rushFx * 0.6 + fever * 1.6) * (calm ? 0.3 : 1),
     imp: [impX / W, 1 - impY / H, imp, 0],
   });
 }
@@ -2196,7 +2199,7 @@ function tick(dt) {
     fever += (ft - fever) * min(1, dt * 5);
     if (!calm) {
       shake = max(shake, fever * beat * 1.1); punch = max(punch, fever * beat * 0.004);
-      if ((fever > 0.15 || boostFx > 0.15) && beat > 0.75 && realTime - ringAt > 0.3) {   // a shockwave rolls off the head on every kick
+      if ((rushFx > 0.15 || fever > 0.15) && beat > 0.75 && realTime - ringAt > 0.3) {   // a shockwave rolls off the head on every kick
         ringAt = realTime;
         const h0 = G.snake[0];
         ring(cellX(h0.x), cellY(h0.y), hue, cell * 2.4, 0.5, 2);
@@ -2208,10 +2211,11 @@ function tick(dt) {
   else hue = turnTo(hue, hueTarget, 1 - exp(-dt * 2.5), 360);
   if (!th.body && !calm) hue = wrap360(hue + dt * 150 * fever);   // themes without a pinned hue spin with the combo
   boostFx += ((G.boosting ? 1 : 0) - boostFx) * min(1, dt * 8);
+  rushFx = min(1.5, max(0.45, boostFx * 1.35));   // the overdrive look runs hot even at rest; shift pushes it past 1
   letter += ((mode === 'dying' ? 1 : 0) - letter) * min(1, dt * (mode === 'dying' ? 7 : 3));
   if (PN && !calm) {
     const hx = bx + (wrapC(PX[0], G.cols) + 0.5) * cell, hy = by + (wrapC(PY[0], G.rows) + 0.5) * cell, e = 1 - exp(-dt * 2.2);
-    const zoom = mode === 'playing' ? min(P.combo - 1, 10) * 0.0025 + boostFx * 0.018 + fever * 0.01 * beat : 0;
+    const zoom = mode === 'playing' ? min(P.combo - 1, 10) * 0.0025 + rushFx * 0.018 + fever * 0.01 * beat : 0;
     camX += ((bx + bw / 2 - hx) * 0.012 - camX) * e; camY += ((by + bh / 2 - hy) * 0.012 - camY) * e; camZ += (zoom - camZ) * (1 - exp(-dt * 3));
   }
   updateHud(dt); syncCss();
