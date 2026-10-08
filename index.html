@@ -2019,7 +2019,7 @@ function finish(g, heat) {
   if (g.food) put(cellX(g.food.x), cellY(g.food.y), g.food.golden ? 1 : 0.7);
   put(hx, hy, 0.35);
   fx.draw({
-    scene: canvas, glow: glow[0].c, time: realTime, beat, fever, rush: rushFx, shift: boostFx, boost: rushFx + fever * 0.3, glitch: calm ? glitch * 0.3 : glitch, crt: opts.crt ? 1 : 0,
+    scene: canvas, glow: glow[0].c, time: realTime, beat, fever, rush: rushFx, shift: mode === 'playing' ? 1 : boostFx, boost: rushFx + fever * 0.3, glitch: calm ? glitch * 0.3 : glitch, crt: opts.crt ? 1 : 0,
     letter, hurt, calm: calm ? 1 : 0, bloomK: 1.05 + heat * 3.4 + fever * 2.2, flareK: 0.34 + heat * 1.9 + rushFx * 0.22 + fever * 1.1,
     head: [hx / W, 1 - hy / H], waves: ws, flash: f,
     hues: [hue, pal ? pal[1] : hue + 80, pal ? th.food : hue + FOOD_SHIFT],
@@ -2287,7 +2287,7 @@ function tick(dt) {
         const h0 = G.snake[0];
         ring(cellX(h0.x), cellY(h0.y), hue, cell * 2.4, 0.5, 2);
       }
-      if (boostFx > 0.1 && beat > 0.85) flash = max(flash, boostFx * 0.04);   // shift strobes on the kick
+      if (mode === 'playing' && beat > 0.85) flash = max(flash, 0.04);   // the kick strobes whether or not shift is down
     }
     if (G && (graffT -= dt) <= 0) {   // the walls never stop getting tagged
       graffT = (calm ? 1.15 : 0.34) + rnd(0, 0.4);
@@ -2302,7 +2302,7 @@ function tick(dt) {
   else hue = turnTo(hue, hueTarget, 1 - exp(-dt * 2.5), 360);
   if (!th.body && !calm) hue = wrap360(hue + dt * 150 * fever);   // themes without a pinned hue spin with the combo
   boostFx += ((G.boosting ? 1 : 0) - boostFx) * min(1, dt * 8);
-  rushFx = min(2.0, 1.35 + boostFx * 0.65);   // the sprint look is the resting look; shift pushes it past full
+  rushFx = min(2.3, 2.0 + boostFx * 0.3);   // the shift look IS the resting look; holding shift cranks it past full
   if (G && G.boosting && !calm) shake = max(shake, 1.9);   // shift rumbles the whole cabinet
   letter += ((mode === 'dying' ? 1 : 0) - letter) * min(1, dt * (mode === 'dying' ? 7 : 3));
   if (PN && !calm) {
