@@ -109,6 +109,7 @@ async function main() {
   c.on(async (m) => {
     if (m.method === 'Runtime.exceptionThrown') errors.push(m.params.exceptionDetails.exception?.description || m.params.exceptionDetails.text);
     if (m.method === 'Runtime.consoleAPICalled' && m.params.type === 'error') errors.push(m.params.args.map((a) => a.value || a.description).join(' '));
+    if (m.method === 'Runtime.consoleAPICalled' && m.params.type === 'warning') console.log('  page warn: ' + m.params.args.map((a) => a.value || a.description).join(' '));
     if (m.method === 'Log.entryAdded' && m.params.entry.level === 'error') errors.push(m.params.entry.text);
     if (m.method === 'Network.requestWillBeSent') requests.push(m.params.request.url);
   });
