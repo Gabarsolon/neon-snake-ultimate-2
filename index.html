@@ -67,6 +67,9 @@ body.gl #c, body.gl .aurora, body.gl .vignette, body.gl .grain, body.gl .crt { d
 body.fever .stat b.od { filter: drop-shadow(1.5px 0 0 rgba(255, 0, 60, .5)) drop-shadow(-1.5px 0 0 rgba(0, 229, 255, .5)) drop-shadow(0 0 16px hsla(var(--h1), 100%, 60%, .8)); }
 body.fever .combo b { text-shadow: 1.5px 0 0 rgba(255, 0, 60, .5), -1.5px 0 0 rgba(0, 229, 255, .5), 0 0 22px hsla(var(--h3), 100%, 60%, 1); }
 body.fever .aurora i { animation-duration: 17s; }
+body.fever .combo .bar i { box-shadow: 0 0 14px hsl(var(--h3), 100%, 60%, .95); animation: barfire .45s ease-in-out infinite alternate; }
+body.fever .hud { filter: drop-shadow(0 0 16px hsla(var(--h1), 100%, 60%, .55)); }
+@keyframes barfire { to { filter: brightness(2.2) saturate(1.8); } }
 
 .icon { pointer-events: auto; width: 36px; height: 36px; border-radius: 50%; display: grid; place-items: center; border: 1px solid rgba(255, 255, 255, .14); background: rgba(255, 255, 255, .05); color: rgba(255, 255, 255, .75); transition: transform .2s ease, background .2s ease, color .2s ease, opacity .45s ease; }
 .icon:hover { background: rgba(255, 255, 255, .13); color: #fff; transform: scale(1.1); }
@@ -196,7 +199,7 @@ body[data-mode="menu"] .deck, body[data-mode="over"] .deck { opacity: 0; visibil
   .top { margin-top: 10px; gap: 3px; }
   .record { margin-top: 10px; }
 }
-@media (prefers-reduced-motion: reduce) { .aurora i, .cta, .logo span { animation: none; } .logo { transform: none; } }
+@media (prefers-reduced-motion: reduce) { .aurora i, .cta, .logo span, .combo .bar i { animation: none; } .logo { transform: none; } }
 </style>
 </head>
 <body data-mode="menu">
@@ -599,10 +602,10 @@ const fx = (() => {
           if (w.w > 0.0) { vec2 d = (uv - w.xy) * asp; float r = length(d), x = (r - w.z) * 24.0; off -= d / max(r, 0.0001) * exp(-x * x) * w.w; }
         }
         uv += off / asp;
-        float band = floor(uv.y * 64.0), tk = floor(time * 24.0);
-        uv.x += (hash(vec2(band, tk)) - 0.5) * step(0.86, hash(vec2(band * 1.7, tk + 3.0))) * glitch * 0.09;
-        vec2 cc = uv - 0.5;
         float fev = fever * (1.0 - 0.75 * calm);
+        float band = floor(uv.y * 64.0), tk = floor(time * 24.0);
+        uv.x += (hash(vec2(band, tk)) - 0.5) * step(0.86, hash(vec2(band * 1.7, tk + 3.0))) * (glitch * 0.09 + fev * 0.045);
+        vec2 cc = uv - 0.5;
         float ca = (0.0006 + dot(cc, cc) * 0.005 + glitch * 0.012 + boost * 0.003 + fev * 0.003 * (0.5 + 0.5 * sin(time * 8.0))) * (1.0 - 0.7 * calm);
         float sw = fev * time * 1.9;   // the red/blue split slowly swirls when the run overheats
         vec2 cq = mat2(cos(sw), -sin(sw), sin(sw), cos(sw)) * cc;
@@ -639,11 +642,15 @@ const fx = (() => {
         col += vec3(0.6, 0.0, 0.12) * hurt * vig;
         col = col / (1.0 + max(col - 0.82, 0.0) * 0.9);                      // soft shoulder instead of a hard clip
         col = mix(vec3(dot(col, vec3(0.299, 0.587, 0.114))), col, 1.08 + fev * 0.35);
+        float lum = dot(col, vec3(0.299, 0.587, 0.114));
+        col += fev * (smoothstep(0.55, 1.0, lum) * vec3(0.05, 0.09, 0.16) + smoothstep(0.35, 0.0, lum) * vec3(0.06, 0.02, 0.0));   // fever grades the picture: teal on top, ember below
         if (crt > 0.5) {
           col *= 0.84 + 0.16 * sin(v.y * res.y * 1.5708);
           vec2 e = smoothstep(0.0, 0.012, tube) * smoothstep(0.0, 0.012, 1.0 - tube); col *= e.x * e.y;
         }
         col += (hash(v * res + fract(time) * 97.0) - 0.5) * 0.03 * (1.0 + fev * 1.1) * (1.0 - 0.6 * calm);   // film grain, also dithers the gradients
+        float vb = abs(uv.y - fract(time * 0.11));
+        col += fev * 0.09 * smoothstep(0.035, 0.0, vb) * vec3(0.7, 0.85, 1.0);   // a soft tracking bar rolls up the tube
         float lb = letter * 0.085; col *= smoothstep(lb, lb + 0.003, v.y) * smoothstep(lb, lb + 0.003, 1.0 - v.y);
         gl_FragColor = vec4(col, 1.0); }`,
   };
@@ -884,6 +891,7 @@ const waves = [];   // refraction rings for the gpu pass, in css px
 let realTime = 0, timeScale = 1, freeze = 0, beat = 0;
 let shake = 0, shX = 0, shY = 0, punch = 0, flash = 0, flashRGB = '255,255,255', glitch = 0, hurt = 0;
 let fever = 0;   // combo overload: how hot the frame is allowed to run right now
+let outline = 0;   // white silhouette snap left behind by a hard bite
 let imp = 0, impX = 0, impY = 0;   // impact frame: spokes of light thrown from the last big eat
 let hue = HUE0, hueTarget = HUE0, cssHue = -1e9, cssTheme = null;
 let overAt = -10, demoAt = 0, shownScore = 0, comboOn = false, ringAt = -1;
@@ -1128,6 +1136,7 @@ function resolveEat(g) {
     const sub = bonus ? 'NOVA!' : gold ? 'GOLD ×5' : [g.combo > 1 ? '×' + g.combo : '', mult > 1 ? 'OVERDRIVE ×2' : ''].filter(Boolean).join(' · ');
     popup(x, y - cell * 0.5, '+' + pts, h, cell * (big ? 0.95 : 0.6 + min(g.combo, 6) * 0.045), sub);
     shake = max(shake, big ? 8 : 2.2 + min(g.combo, 12) * 0.55); punch = max(punch, big ? 0.05 : 0.011 + min(g.combo, 10) * 0.0015);
+    if (cmb >= 3) { imp = max(imp, 0.35); impX = x; impY = y; outline = max(outline, min(1, 0.45 + g.combo * 0.04)); }   // every hard bite punches the frame
     if (big || cmb >= 5) { imp = big ? 1 : 0.7; impX = x; impY = y; }   // spokes of light, punched into the gpu pass
     freeze = max(freeze, big ? 0.09 : 0.06);   // hitstop
     const pan = clamp((x - W / 2) / (W / 2), -1, 1) * 0.7;
@@ -1168,6 +1177,8 @@ function banner(title, sub) {
 function milestone(n) {
   banner(MILESTONES[n] || 'INSANE!', '×' + n + ' COMBO');
   flash = max(flash, 0.14); flashRGB = '255,255,255'; punch = max(punch, 0.02);
+  shake = max(shake, 7); glitch = max(glitch, 0.55);   // the frame loses it
+  const h = G.snake[0]; imp = 1; impX = cellX(h.x); impY = cellY(h.y); outline = 1;
   audio.milestone();
 }
 
@@ -1554,9 +1565,9 @@ function drawLights(c, g) {
 }
 
 function drawFrame(c, gp) {
-  const p = cell * PAD, h = turnTo(turnTo(hue, 330, boostFx * 0.85, 360), 350, hurt, 360), a = min(1, 0.5 + 0.28 * beat + 0.4 * hurt + 0.35 * boostFx + 0.3 * fever * beat);
+  const p = cell * PAD, h = turnTo(turnTo(hue, 330, boostFx * 0.85, 360), 350, hurt, 360), a = min(1, 0.5 + 0.28 * beat + 0.4 * hurt + 0.35 * boostFx + fever * (0.4 + 0.3 * beat));
   rr(c, bx - p, by - p, bw + p * 2, bh + p * 2, cell * 0.5);
-  c.strokeStyle = hsla(h, 100, gp ? 58 : 74, gp ? a * 0.8 : a); c.lineWidth = (gp ? 4 : 1.5) + boostFx + fever * beat * 1.2;
+  c.strokeStyle = hsla(h, 100 - fever * 45, (gp ? 58 : 74) + fever * 18, gp ? a * 0.8 : a); c.lineWidth = (gp ? 4 : 1.5) + boostFx + fever * (0.8 + beat * 1.2);
   if (opts.portal) { c.setLineDash([cell * 0.55, cell * 0.3]); c.lineDashOffset = -realTime * cell * 1.4; }   // portal walls: open, marching
   c.stroke();
   // two pulses of current chase round the border, quicker as the run heats up
@@ -1576,9 +1587,9 @@ function drawFrame(c, gp) {
 
 // a slow sheen slides across the glass every few seconds
 function drawSheen(c) {
-  const ph = (realTime % 8) / 8;
+  const per = 8 - 5 * min(1, fever), ph = (realTime % per) / per;
   if (ph > 0.5) return;
-  const k = ph / 0.5, x = bx - bw * 0.3 + bw * 1.6 * outCubic(k), a = 0.05 * sin(k * PI);
+  const k = ph / 0.5, x = bx - bw * 0.3 + bw * 1.6 * outCubic(k), a = (0.05 + 0.1 * fever) * sin(k * PI);
   c.save(); rr(c, bx - cell * PAD, by - cell * PAD, bw + cell * PAD * 2, bh + cell * PAD * 2, cell * 0.5); c.clip();
   const gr = c.createLinearGradient(x - cell * 5, by, x + cell * 5, by + bh * 0.35);
   gr.addColorStop(0, 'rgba(255,255,255,0)'); gr.addColorStop(0.5, `rgba(255,255,255,${a.toFixed(3)})`); gr.addColorStop(1, 'rgba(255,255,255,0)');
@@ -1786,10 +1797,29 @@ function drawStreaks(c) {
 
 function drawScene(c, g, gp) {
   drawFood(c, g, gp); drawBonus(c, g, gp); drawSnake(c, g, gp);
+  drawSnap(c, g, gp);
   c.globalCompositeOperation = 'lighter';
   drawRings(c); drawParts(c); if (streaks.length) drawStreaks(c);
   c.globalCompositeOperation = 'source-over';
   drawPopups(c, gp);
+}
+
+// the snake flashes as a white silhouette for a moment after a hard bite
+function drawSnap(c, g, gp) {
+  if (outline <= 0.01 || PN < 2) return;
+  c.globalCompositeOperation = 'lighter';
+  c.strokeStyle = `rgba(255,255,255,${(outline * (gp ? 0.45 : 0.85)).toFixed(3)})`;
+  c.lineWidth = cell * 0.55; c.lineJoin = 'round'; c.lineCap = 'round';
+  c.beginPath();
+  let first = true, px = 0, py = 0;
+  for (let i = PN - 1; i >= 0; i--) {
+    const x = cellX(wrapC(PX[i], g.cols)), y = cellY(wrapC(PY[i], g.rows));
+    if (first || abs(x - px) > cell * g.cols * 0.5 || abs(y - py) > cell * g.rows * 0.5) c.moveTo(x, y);
+    else c.lineTo(x, y);
+    first = false; px = x; py = y;
+  }
+  c.stroke();
+  c.globalCompositeOperation = 'source-over';
 }
 
 // bloom: everything emissive is redrawn small and blurred down a mip chain; render() lays it
@@ -2149,6 +2179,7 @@ function tick(dt) {
     if (freeze > 0) { freeze -= dt; gdt = 0; } else timeScale = min(1, timeScale + dt * 1.1);
     shake *= exp(-dt * 7.5); punch *= exp(-dt * 11); flash *= exp(-dt * 7); hurt *= exp(-dt * 2.2);
     glitch = max(0, glitch - dt * 2.6);
+    outline = max(0, outline - dt * 3.5);
     imp = max(0, imp - dt * 6.5);
     updateGame(G, gdt, dt);
     updateFx(gdt);
@@ -2180,7 +2211,7 @@ function tick(dt) {
   letter += ((mode === 'dying' ? 1 : 0) - letter) * min(1, dt * (mode === 'dying' ? 7 : 3));
   if (PN && !calm) {
     const hx = bx + (wrapC(PX[0], G.cols) + 0.5) * cell, hy = by + (wrapC(PY[0], G.rows) + 0.5) * cell, e = 1 - exp(-dt * 2.2);
-    const zoom = mode === 'playing' ? min(P.combo - 1, 10) * 0.0025 + boostFx * 0.012 + fever * 0.01 * beat : 0;
+    const zoom = mode === 'playing' ? min(P.combo - 1, 10) * 0.0025 + boostFx * 0.018 + fever * 0.01 * beat : 0;
     camX += ((bx + bw / 2 - hx) * 0.012 - camX) * e; camY += ((by + bh / 2 - hy) * 0.012 - camY) * e; camZ += (zoom - camZ) * (1 - exp(-dt * 3));
   }
   updateHud(dt); syncCss();
